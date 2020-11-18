@@ -3,13 +3,14 @@ pragma solidity 0.7.0;
 pragma experimental ABIEncoderV2;
 
 import "./ERC165.sol";
-import "./interfaces/IERC721.sol";
 import "./interfaces/IERC721Enumerable.sol";
 import "./interfaces/IERC721Metadata.sol";
 import "./interfaces/IERC721TokenReceiver.sol";
+import "./interfaces/ILands.sol";
 import "./libraries/SafeMath.sol";
+import "./Pausable.sol";
 
-contract Lands is ERC165, IERC721, IERC721Enumerable, IERC721Metadata {
+contract Lands is ERC165, ILands, Pausable {
     using SafeMath for uint256;
 
     address internal _creator;
@@ -27,8 +28,9 @@ contract Lands is ERC165, IERC721, IERC721Enumerable, IERC721Metadata {
     
     string[] internal _tokenIDs; // array of tokenId
     mapping(string => uint8) internal _tokenWeights; // weight of each token
-    mapping(string => uint256) internal _tokenTimestamps; // timestamp at the moment user becomes owner of a token
+    mapping(string => uint64) internal _tokenTimestamps; // timestamp at the moment user becomes owner of a token
     mapping(string => uint256) internal _tokenIndexes; // index of tokenId in array of tokenId
+    mapping(string => bool) internal _created; // token is created
     mapping(string => bool) internal _burned; // token is burned
 
     /// @notice Contract constructor
@@ -90,12 +92,12 @@ contract Lands is ERC165, IERC721, IERC721Enumerable, IERC721Metadata {
     ///  `tokenId` is not a valid NFT. When transfer is complete, this function
     ///  checks if `to` is a smart contract (code size > 0). If so, it calls
     ///  `onERC721Received` on `to` and throws if the return value is not
-    ///  `bytes4(keccak256("onERC721Received(address,address,uint256,bytes)"))`.
+    ///  `bytes4(keccak256("onERC721Received(address,address,string,bytes)"))`.
     /// @param from The current owner of the NFT
     /// @param to The new owner
     /// @param tokenId The NFT to transfer
     /// @param data Additional data with no specified format, sent in call to `to`
-    function safeTransferFrom(address from, address to, string memory tokenId, bytes memory data) public override payable {
+    function safeTransferFrom(address from, address to, string memory tokenId, bytes memory data) public override whenNotPaused {
         transferFrom(from, to, tokenId);
 
         //Get size of "to" address, if 0 it's a wallet
@@ -116,7 +118,7 @@ contract Lands is ERC165, IERC721, IERC721Enumerable, IERC721Metadata {
     /// @param from The current owner of the NFT
     /// @param to The new owner
     /// @param tokenId The NFT to transfer
-    function safeTransferFrom(address from, address to, string memory tokenId) public override payable {
+    function safeTransferFrom(address from, address to, string memory tokenId) public override whenNotPaused {
         safeTransferFrom(from, to, tokenId, "");
     }
 
@@ -130,18 +132,19 @@ contract Lands is ERC165, IERC721, IERC721Enumerable, IERC721Metadata {
     /// @param from The current owner of the NFT
     /// @param to The new owner
     /// @param tokenId The NFT to transfer
-    function transferFrom(address from, address to, string memory tokenId) public override payable {
+    function transferFrom(address from, address to, string memory tokenId) public override whenNotPaused {
         address owner = ownerOf(tokenId);
-        require(from == _creator && from != to && from == owner);
-        require(msg.sender == _allowance[tokenId] || _authorised[owner][msg.sender]);
-        require(address(0) != to);
-        require(isValidToken(tokenId));
+        require(from == _creator && from == owner, "transferFrom: not from creator");
+        require(msg.sender == _creator || msg.sender == _allowance[tokenId] || _authorised[owner][msg.sender], "transferFrom: not have permission");
+        require(from != to, "transferFrom: from and to address are same.");
+        require(address(0) != to, "transferFrom: transfer to zero address.");
+        require(isValidToken(tokenId), "transferFrom: token id is invalid");
 
         emit Transfer(from, to, tokenId);
 
         _owners[tokenId] = to;
         _balances[from]--;
-        _balances[to]++;
+        _balances[to] = _balances[to].add(1);
 
         //Reset approved if there is one
         if (_allowance[tokenId] != address(0)) {
@@ -158,6 +161,8 @@ contract Lands is ERC165, IERC721, IERC721Enumerable, IERC721Metadata {
         _ownerTokenIDs[from].pop();
         _ownerTokenIndexes[tokenId] = _ownerTokenIDs[to].length;
         _ownerTokenIDs[to].push(tokenId);
+        
+        _tokenTimestamps[tokenId] = uint64(block.timestamp % 2**64);
     }
 
     /// @notice Change or reaffirm the approved address for an NFT
@@ -166,7 +171,7 @@ contract Lands is ERC165, IERC721, IERC721Enumerable, IERC721Metadata {
     ///  operator of the current owner.
     /// @param approved The new approved NFT controller
     /// @param tokenId The NFT to approve
-    function approve(address approved, string memory tokenId) external override payable {
+    function approve(address approved, string memory tokenId) external override whenNotPaused {
         address owner = ownerOf(tokenId);
         require(msg.sender == owner || _authorised[owner][msg.sender]);
 
@@ -181,7 +186,7 @@ contract Lands is ERC165, IERC721, IERC721Enumerable, IERC721Metadata {
     ///  multiple operators per owner.
     /// @param operator Address to add to the set of authorized operators
     /// @param approved True if the operator is approved, false to revoke approval
-    function setApprovalForAll(address operator, bool approved) external override {
+    function setApprovalForAll(address operator, bool approved) external override whenNotPaused {
         emit ApprovalForAll(msg.sender, operator, approved);
         
         _authorised[msg.sender][operator] = approved;
@@ -192,7 +197,7 @@ contract Lands is ERC165, IERC721, IERC721Enumerable, IERC721Metadata {
     /// @param tokenId The NFT to find the approved address for
     /// @return The approved address for this NFT, or the zero address if there is none
     function getApproved(string memory tokenId) external override view returns (address) {
-        require(isValidToken(tokenId));
+        require(isValidToken(tokenId), "getApproved: token id is invalid");
 
         return _allowance[tokenId];
     }
@@ -230,7 +235,7 @@ contract Lands is ERC165, IERC721, IERC721Enumerable, IERC721Metadata {
     /// @return The token identifier for the `index`th NFT assigned to `owner`,
     ///   (sort order not specified)
     function tokenOfOwnerByIndex(address owner, uint256 index) external override view returns (string memory) {
-        require(index < _balances[owner] && owner != address(0));
+        require(index < _balances[owner], "tokenOfOwnerByIndex: index is invalid");
         return _ownerTokenIDs[owner][index];
     }
 
@@ -249,13 +254,12 @@ contract Lands is ERC165, IERC721, IERC721Enumerable, IERC721Metadata {
     /// @dev check if token id is duplicated, or null or burned. Throw if msg.sender is not creator
     /// @param tokenIDs array of extra tokens to mint.
     /// @param tokenWeights weight of each token.
-    /// @param tokenTimestamps timestamp of each token.
-    function issueToken(string[] memory tokenIDs, uint8[] memory tokenWeights, uint256[] memory tokenTimestamps) public {
-        require(msg.sender == _creator);
+    function issueToken(string[] memory tokenIDs, uint8[] memory tokenWeights) public override whenNotPaused {
+        require(msg.sender == _creator, "issueToken: not have permission.");
         _balances[msg.sender] = _balances[msg.sender].add(tokenIDs.length);
 
         for (uint256 i = 0; i < tokenIDs.length; i++) {
-            if (bytes(tokenIDs[i]).length > 0 && _tokenTimestamps[tokenIDs[i]] == 0 && !_burned[tokenIDs[i]]) {
+            if (bytes(tokenIDs[i]).length > 0 && !_created[tokenIDs[i]] && !_burned[tokenIDs[i]]) {
                 _ownerTokenIndexes[tokenIDs[i]] = _ownerTokenIDs[_creator].length;
                 _ownerTokenIDs[_creator].push(tokenIDs[i]);
 
@@ -263,7 +267,8 @@ contract Lands is ERC165, IERC721, IERC721Enumerable, IERC721Metadata {
                 _tokenIDs.push(tokenIDs[i]);
 
                 _tokenWeights[tokenIDs[i]] = tokenWeights[i];
-                _tokenTimestamps[tokenIDs[i]] = tokenTimestamps[i];
+
+                _created[tokenIDs[i]] = true;
 
                 //Move event emit into this loop to save gas
                 emit Transfer(address(0), _creator, tokenIDs[i]);
@@ -277,10 +282,10 @@ contract Lands is ERC165, IERC721, IERC721Enumerable, IERC721Metadata {
     /// @dev throw unless msg.sender is creator and owner is creator.
     /// throw if token is not valid
     /// @param tokenId id of token.
-    function burnToken(string memory tokenId) public {
+    function burnToken(string memory tokenId) public override whenNotPaused {
         address owner = ownerOf(tokenId);
-        require(msg.sender == _creator && owner == _creator);
-        require(isValidToken(tokenId));
+        require(msg.sender == _creator && owner == _creator, "burnToken: not have permission");
+        require(isValidToken(tokenId), "burnToken: token id is invalid.");
 
         _burned[tokenId] = true;
         _balances[owner]--;
@@ -320,9 +325,7 @@ contract Lands is ERC165, IERC721, IERC721Enumerable, IERC721Metadata {
     /// @dev throw if 'owner' is zero address
     /// @param owner address of owner
     /// @return list of token ids of owner
-    function getTokenIDsOfOwner(address owner) external view returns(string[] memory) {
-        require(owner != address(0));
-
+    function getTokenIDsOfOwner(address owner) external override view returns(string[] memory) {
         return _ownerTokenIDs[owner];
     }
 
@@ -330,8 +333,8 @@ contract Lands is ERC165, IERC721, IERC721Enumerable, IERC721Metadata {
     /// @dev throw if token is not valid
     /// @param tokenId id of the token
     /// @return token weight
-    function getTokenWeight(string memory tokenId) external view returns(uint8){
-        require(isValidToken(tokenId));
+    function getTokenWeight(string memory tokenId) external override view returns(uint8) {
+        require(isValidToken(tokenId), "getTokenWeight: token id is invalid.");
 
         return _tokenWeights[tokenId];
     }
@@ -340,8 +343,8 @@ contract Lands is ERC165, IERC721, IERC721Enumerable, IERC721Metadata {
     /// @dev throw if token is not valid
     /// @param tokenId id of the token
     /// @return token timestamp
-    function getTokenTimestamp(string memory tokenId) external view returns(uint256) {
-        require(isValidToken(tokenId));
+    function getTokenTimestamp(string memory tokenId) external override view returns(uint64) {
+        require(isValidToken(tokenId), "getTokenTimestamp: token id is invalid.");
 
         return _tokenTimestamps[tokenId];
     }
@@ -350,9 +353,9 @@ contract Lands is ERC165, IERC721, IERC721Enumerable, IERC721Metadata {
     /// @dev throw unless msg.sender is creator and token id is valid.
     /// @param tokenId id of token
     /// @param newWeight new value of token weight
-    function updateTokenWeight(string memory tokenId, uint8 newWeight) public {
+    function updateTokenWeight(string memory tokenId, uint8 newWeight) public override whenNotPaused {
         require(msg.sender == _creator);
-        require(isValidToken(tokenId));
+        require(isValidToken(tokenId), "updateTokenWeight: token id is invalid.");
 
         _tokenWeights[tokenId] = newWeight;
     }
@@ -361,7 +364,10 @@ contract Lands is ERC165, IERC721, IERC721Enumerable, IERC721Metadata {
     /// @dev throw unless token id is valid.
     /// @param tokenId id of token
     /// @param newTimestamp new value of token timestamp
-    function updateTokenTimestamp(string memory tokenId, uint256 newTimestamp) internal {
+    function updateTokenTimestamp(string memory tokenId, uint64 newTimestamp) external override whenNotPaused {
+        require(msg.sender == _creator || _authorised[_creator][msg.sender], "Lands, updateTokenTimestamp: not authorised");
+        require(isValidToken(tokenId), "updateTokenTimestamp: token id is invalid");
+
         _tokenTimestamps[tokenId] = newTimestamp;
     }
 
@@ -370,6 +376,6 @@ contract Lands is ERC165, IERC721, IERC721Enumerable, IERC721Metadata {
     /// @param tokenId The tokenId to check
     /// @return (bool) True if valid, False if not valid.
     function isValidToken(string memory tokenId) internal view returns (bool) {
-        return bytes(tokenId).length > 0 && _tokenTimestamps[tokenId] > 0 && !_burned[tokenId];
+        return _created[tokenId] && !_burned[tokenId];
     }
 }

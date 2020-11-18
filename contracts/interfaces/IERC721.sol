@@ -48,7 +48,7 @@ interface IERC721 /* is ERC165 */ {
     /// @param to The new owner
     /// @param tokenId The NFT to transfer
     /// @param data Additional data with no specified format, sent in call to `to`
-    function safeTransferFrom(address from, address to, string memory tokenId, bytes memory data) external payable;
+    function safeTransferFrom(address from, address to, string memory tokenId, bytes memory data) external;
 
     /// @notice Transfers the ownership of an NFT from one address to another address
     /// @dev This works identically to the other function with an extra data parameter,
@@ -56,7 +56,7 @@ interface IERC721 /* is ERC165 */ {
     /// @param from The current owner of the NFT
     /// @param to The new owner
     /// @param tokenId The NFT to transfer
-    function safeTransferFrom(address from, address to, string memory tokenId) external payable;
+    function safeTransferFrom(address from, address to, string memory tokenId) external;
 
     /// @notice Transfer ownership of an NFT -- THE CALLER IS RESPONSIBLE
     ///  TO CONFIRM THAT `to` IS CAPABLE OF RECEIVING NFTS OR ELSE
@@ -68,7 +68,7 @@ interface IERC721 /* is ERC165 */ {
     /// @param from The current owner of the NFT
     /// @param to The new owner
     /// @param tokenId The NFT to transfer
-    function transferFrom(address from, address to, string memory tokenId) external payable;
+    function transferFrom(address from, address to, string memory tokenId) external;
 
     /// @notice Change or reaffirm the approved address for an NFT
     /// @dev The zero address indicates there is no approved address.
@@ -76,7 +76,7 @@ interface IERC721 /* is ERC165 */ {
     ///  operator of the current owner.
     /// @param approved The new approved NFT controller
     /// @param tokenId The NFT to approve
-    function approve(address approved, string memory tokenId) external payable;
+    function approve(address approved, string memory tokenId) external;
 
     /// @notice Enable or disable approval for a third party ("operator") to manage
     ///  all of `msg.sender`'s assets
