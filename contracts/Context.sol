@@ -2,8 +2,6 @@
 pragma solidity ^0.7.0;
 
 contract Context {
-    constructor () {}
-
     function _msgSender() internal view returns (address payable) {
         return msg.sender;
     }

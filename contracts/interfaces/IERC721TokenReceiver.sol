@@ -12,8 +12,9 @@ interface IERC721TokenReceiver {
     /// @param operator The address which called `safeTransferFrom` function
     /// @param from The address which previously owned the token
     /// @param tokenId The NFT identifier which is being transferred
+    /// @param amount number of NFT which is being transferred
     /// @param data Additional data with no specified format
-    /// @return `bytes4(keccak256("onERC721Received(address,address,uint256,bytes)"))`
+    /// @return `bytes4(keccak256("onERC721Received(address,address,string,uint256,bytes)"))`
     ///  unless throwing
-    function onERC721Received(address operator, address from, string memory tokenId, bytes memory data) external returns(bytes4);
+    function onERC721Received(address operator, address from, string memory tokenId, uint256 amount, bytes memory data) external returns(bytes4);
 }

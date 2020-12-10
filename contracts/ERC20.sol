@@ -12,11 +12,36 @@ import "./Context.sol";
 contract ERC20 is Context, IERC20 {
     using SafeMath for uint256;
 
+    string private _name;
+    
+    string private _symbol;
+    
+    uint8 private _decimals;
+
     mapping (address => uint256) private _balances;
 
     mapping (address => mapping (address => uint256)) private _allowances;
 
     uint256 private _totalSupply;
+
+     constructor (string memory name, string memory symbol, uint8 decimals) {
+        _name = name;
+        _symbol = symbol;
+        _decimals = decimals;
+    }
+
+    function name() public override view returns (string memory) {
+        return _name;
+    }
+
+    function symbol() public override view returns (string memory) {
+        return _symbol;
+    }
+
+    function decimals() public override view returns (uint8) {
+        return _decimals;
+    }
+
 
     function totalSupply() public override view returns (uint256) {
         return _totalSupply;
