@@ -13,9 +13,9 @@ contract Time is ERC20Mintable, Pausable {
     mapping(address => mapping(address => bool)) internal _authorised;
     event ApprovalForAll(address indexed sender, address indexed operator, bool approved);
 
-    constructor(uint _totalSupply, string memory _name, string memory _symbol, uint8 _decimals) ERC20Mintable(_name, _symbol, _decimals) {
+    constructor(address mintTo, uint _totalSupply, string memory _name, string memory _symbol, uint8 _decimals) ERC20Mintable(_name, _symbol, _decimals) {
         uint256 totalSupply = _totalSupply * (10 ** uint256(decimals()));
-        mint(_msgSender(), totalSupply);       
+        mint(mintTo, totalSupply);       
     }
 
     function transfer(address to, uint256 value) public override whenNotPaused returns (bool) {

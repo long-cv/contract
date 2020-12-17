@@ -33,8 +33,8 @@ contract Lands is ERC165, ILands, Pausable {
     /// @notice Contract constructor
     /// @param name The name of token
     /// @param symbol The symbol of token
-    constructor(string memory name, string memory symbol) ERC165() {
-        _creator = msg.sender;
+    constructor(address creator, string memory name, string memory symbol) ERC165() {
+        _creator = creator;
 
         _name = name;
         _symbol = symbol;
@@ -61,6 +61,13 @@ contract Lands is ERC165, ILands, Pausable {
             this.getTokenTimestamp.selector ^
             this.updateTokenTimestamp.selector
         ] = true;
+    }
+
+    function setCreator(address creator) external {
+        require(msg.sender == _creator, "setCreator: not creator");
+        require(address(0) == creator, "setCreator: creator can not be zero address");
+        
+        _creator = creator;
     }
 
     /// @notice Count all NFTs assigned to an owner
