@@ -4,32 +4,35 @@ pragma experimental ABIEncoderV2;
 
 import "./ERC165.sol";
 import "./interfaces/IERC721TokenReceiver.sol";
-import "./interfaces/ILands.sol";
+import "./interfaces/IQuadKey.sol";
 import "./libraries/SafeMath.sol";
 import "./Pausable.sol";
 
-contract Lands is ERC165, ILands, Pausable {
+contract QuadKey is ERC165, IQuadKey, Pausable {
     using SafeMath for uint256;
 
     address internal _creator;
+    
+    mapping(address => mapping(string => bool)) internal _isOwners;
+    mapping(address => mapping(address => mapping(string => uint256))) internal _allowances;
     mapping(address => mapping(address => bool)) internal _authorised;
 
     string private _name;
     string private _symbol;
-    mapping(address => mapping(string => mapping(string => bool))) internal _isOwners;
-    mapping(address => mapping(string => Tokens[])) internal _ownerTokens; // array of tokenId of a owner
-    mapping(address => mapping(string => mapping(string => uint256))) internal _ownerTokenIndexes; // index of tokenId in array of tokenId of a owner
+
+    mapping(address => QuadKeyInfo[]) internal _ownerTokens; // array of tokenId of a owner
+    mapping(address => mapping(string => uint256)) internal _ownerTokenIndexes; // index of tokenId in array of tokenId of a owner
+    mapping(address => uint256) internal _ownerTotalTokenBalance; // total of all tokens owned
 
     string[] internal _tokenIDs; // array of tokenId
     mapping(string => uint256) internal _tokenIndexes; // index of tokenId in array of tokenId
-    mapping(string => uint64) internal _interval; // interval that allow receiving the reward.
     Supplies _totalSupply; // total of all tokens supplied
     mapping(string => bool) internal _created; // token is created
 
     /// @notice Contract constructor
     /// @param name The name of token
     /// @param symbol The symbol of token
-    constructor(address creator, string memory name, string memory symbol, string[] memory initIDs, uint64[] memory initInterval) ERC165() {
+    constructor(address creator, string memory name, string memory symbol) ERC165() {
         _creator = creator;
 
         _name = name;
@@ -37,11 +40,14 @@ contract Lands is ERC165, ILands, Pausable {
 
         //Add to ERC165 Interface Check
         _supportedInterfaces[
+            this.balanceOf.selector ^
             this.isOwnerOf.selector ^
-            bytes4(keccak256("safeTransferFrom(address,address,string,string,uint256,bytes)")) ^
-            bytes4(keccak256("safeTransferFrom(address,address,string,string,uint256)")) ^
+            bytes4(keccak256("safeTransferFrom(address,address,string,uint256,bytes)")) ^
+            bytes4(keccak256("safeTransferFrom(address,address,string,uint256)")) ^
             this.transferFrom.selector ^
+            this.approve.selector ^
             this.setApprovalForAll.selector ^
+            this.getApproved.selector ^
             this.isApprovedForAll.selector ^
             this.totalSupply.selector ^
             this.tokenByIndex.selector ^
@@ -49,19 +55,9 @@ contract Lands is ERC165, ILands, Pausable {
             this.tokenIndexOfOwnerById.selector ^
             this.name.selector ^
             this.symbol.selector ^
-            this.createToken.selector ^
-            this.getTokenIDs.selector ^
             this.issueToken.selector ^
             this.getTokensOfOwner.selector
         ] = true;
-
-        for (uint i = 0; i < initIDs.length; i++) {
-            _created[initIDs[i]] = true;
-            _tokenIndexes[initIDs[i]] = i;
-            _tokenIDs.push(initIDs[i]);
-            _totalSupply.totalIdSupplies = _totalSupply.totalIdSupplies.add(1);
-            _interval[initIDs[i]] = initInterval[i];
-        }
     }
 
     function setCreator(address creator) external {
@@ -71,15 +67,24 @@ contract Lands is ERC165, ILands, Pausable {
         _creator = creator;
     }
 
+    /// @notice Count all NFTs assigned to an owner
+    /// @dev NFTs assigned to the zero address are considered invalid, and this
+    ///  function throws for queries about the zero address.
+    /// @param owner An address for whom to query the balance
+    /// @return The number of NFTs owned by `_owner`, possibly zero
+    function balanceOf(address owner) external override view returns (uint256) {
+        return _ownerTotalTokenBalance[owner];
+    }
+
     /// @notice check the owner of an NFT
     /// @dev Throw if tokenId is not valid.
     /// @param owner address need to check
     /// @param tokenId The identifier for an NFT
     /// @return true if is owner, false if not
-    function isOwnerOf(address owner, string memory quadkey, string memory tokenId) public override view returns (bool) {
+    function isOwnerOf(address owner, string memory tokenId) public override view returns (bool) {
         require(isValidToken(tokenId), "isOwnerOf: token is not valid.");
 
-        return _isOwners[owner][quadkey][tokenId];
+        return _isOwners[owner][tokenId];
     }
 
     /// @notice Transfers number of an NFT from one address to another address
@@ -92,8 +97,8 @@ contract Lands is ERC165, ILands, Pausable {
     /// @param tokenId The NFT to transfer
     /// @param amount The amount of NFT to transfer
     /// @param data Additional data with no specified format, sent in call to `to`
-    function safeTransferFrom(address from, address to, string memory quadkey, string memory tokenId, uint256 amount, bytes memory data) public override whenNotPaused {
-        transferFrom(from, to, quadkey, tokenId, amount);
+    function safeTransferFrom(address from, address to, string memory tokenId, uint256 amount, bytes memory data) public override whenNotPaused {
+        transferFrom(from, to, tokenId, amount);
 
         //Get size of "to" address, if 0 it's a wallet
         uint32 size;
@@ -114,8 +119,8 @@ contract Lands is ERC165, ILands, Pausable {
     /// @param to The new owner
     /// @param tokenId The NFT to transfer
     /// @param amount The amount of NFT to transfer
-    function safeTransferFrom(address from, address to, string memory quadkey, string memory tokenId, uint256 amount) public override whenNotPaused {
-        safeTransferFrom(from, to, quadkey, tokenId, amount, "");
+    function safeTransferFrom(address from, address to, string memory tokenId, uint256 amount) public override whenNotPaused {
+        safeTransferFrom(from, to, tokenId, amount, "");
     }
 
     /// @notice Transfer a number of an NFT -- THE CALLER IS RESPONSIBLE
@@ -129,31 +134,47 @@ contract Lands is ERC165, ILands, Pausable {
     /// @param to The new owner
     /// @param tokenId The NFT to transfer
     /// @param amount The amount of NFT to transfer
-    function transferFrom(address from, address to, string memory quadkey, string memory tokenId, uint256 amount) public override whenNotPaused {
+    function transferFrom(address from, address to, string memory tokenId, uint256 amount) public override whenNotPaused {
+        require(isOwnerOf(from, tokenId), "transferFrom: requrest for address not be an owner of token");
         require(msg.sender == _creator || _authorised[_creator][msg.sender], "transferFrom: sender does not have permission");
         require(from != to, "transferFrom: source and destination address are same.");
         require(address(0) != to, "transferFrom: transfer to zero address.");
         require(isValidToken(tokenId), "transferFrom: token id is invalid");
 
-        uint256 index = _ownerTokenIndexes[from][quadkey][tokenId];
-        _ownerTokens[from][quadkey][index].balance = _ownerTokens[from][quadkey][index].balance.sub(amount, "transferFrom: amount exceeds token balance");
-        _ownerTokens[from][quadkey][index].timestamp = uint64(block.timestamp % 2**64);
+        uint256 index = _ownerTokenIndexes[from][tokenId];
+        _ownerTokens[from][index].balance = _ownerTokens[from][index].balance.sub(amount, "transferFrom: amount exceeds token balance");
+        _ownerTotalTokenBalance[from] = _ownerTotalTokenBalance[from].sub(amount);
 
-        if (!_isOwners[to][quadkey][tokenId]) {
-            _isOwners[to][quadkey][tokenId] = true;
-            _ownerTokenIndexes[to][quadkey][tokenId] = _ownerTokens[to][quadkey].length;
-            Tokens memory land;
+        _ownerTotalTokenBalance[to] = _ownerTotalTokenBalance[to].add(amount);
+        if (!_isOwners[to][tokenId]) {
+            _isOwners[to][tokenId] = true;
+            _ownerTokenIndexes[to][tokenId] = _ownerTokens[to].length;
+            QuadKeyInfo memory land;
             land.id = tokenId;
             land.balance = amount;
-            land.timestamp = uint64(block.timestamp % 2**64);
-            _ownerTokens[to][quadkey].push(land);
+            _ownerTokens[to].push(land);
         } else {
-            index = _ownerTokenIndexes[to][quadkey][tokenId];
-            _ownerTokens[to][quadkey][index].balance = _ownerTokens[to][quadkey][index].balance.add(amount);
-            _ownerTokens[to][quadkey][index].timestamp = uint64(block.timestamp % 2**64);
+            index = _ownerTokenIndexes[to][tokenId];
+            _ownerTokens[to][index].balance = _ownerTokens[to][index].balance.add(amount);
         }
 
-        emit Transfer(from, to, quadkey, tokenId, amount);
+        emit Transfer(from, to, tokenId, amount);
+    }
+
+    /// @notice Change or reaffirm the approved address for an NFT
+    /// @dev Throws unless `msg.sender` is the current NFT owner, or an authorized
+    ///  operator of the current owner.
+    /// @param owner address of NFT owner
+    /// @param spender address of new NFT controller
+    /// @param tokenId The NFT to approve
+    /// @param amount number of NFT to approve
+    function approve(address owner, address spender, string memory tokenId, uint256 amount) public override whenNotPaused {
+        require(isOwnerOf(owner, tokenId), "approve: requrest for address not be an owner of token");
+        require(msg.sender == owner || _authorised[owner][msg.sender], "approve: sender does not have permission");
+        require(spender != address(0), "approve to the zero address");
+
+        _allowances[owner][spender][tokenId] = amount;
+        emit Approval(owner, spender, tokenId, amount);
     }
 
     /// @notice Enable or disable approval for a third party ("operator") to manage
@@ -166,6 +187,18 @@ contract Lands is ERC165, ILands, Pausable {
         emit ApprovalForAll(msg.sender, operator, approved);
         
         _authorised[msg.sender][operator] = approved;
+    }
+
+    /// @notice Get the approved amount of a single NFT
+    /// @dev Throws if `tokenId` is not a valid NFT.
+    /// @param owner address of owner of The NFT
+    /// @param spender address of controler of The NFT
+    /// @param tokenId The NFT id
+    /// @return The approved amount for this NFT
+    function getApproved(address owner, address spender, string memory tokenId) external override view returns (uint256) {
+        require(isValidToken(tokenId), "getApproved: token id is invalid");
+
+        return _allowances[owner][spender][tokenId];
     }
 
     /// @notice Query if an address is an authorized operator for another address
@@ -200,9 +233,9 @@ contract Lands is ERC165, ILands, Pausable {
     /// @param index A counter less than number of tokens owned
     /// @return The token identifier for the `index`th NFT assigned to `owner`,
     ///   (sort order not specified)
-    function tokenOfOwnerByIndex(address owner, string memory quadkey, uint256 index) external override view returns (Tokens memory) {
-        require(index < _ownerTokens[owner][quadkey].length, "tokenOfOwnerByIndex: index is invalid");
-        return _ownerTokens[owner][quadkey][index];
+    function tokenOfOwnerByIndex(address owner, uint256 index) external override view returns (QuadKeyInfo memory) {
+        require(index < _ownerTokens[owner].length, "tokenOfOwnerByIndex: index is invalid");
+        return _ownerTokens[owner][index];
     }
 
     /// @notice Enumerate NFTs assigned to an owner
@@ -212,10 +245,10 @@ contract Lands is ERC165, ILands, Pausable {
     /// @param tokenId id of token
     /// @return The token identifier for the `index`th NFT assigned to `owner`,
     ///   (sort order not specified)
-    function tokenIndexOfOwnerById(address owner, string memory quadkey, string memory tokenId) external override view returns (uint256) {
-        require(isOwnerOf(owner, quadkey, tokenId), "tokenIndexOfOwnerById: requrest for address not be an owner of token");
+    function tokenIndexOfOwnerById(address owner, string memory tokenId) external override view returns (uint256) {
+        require(isOwnerOf(owner, tokenId), "tokenIndexOfOwnerById: requrest for address not be an owner of token");
         require(isValidToken(tokenId), "tokenIndexOfOwnerById: token id is invalid.");
-        return _ownerTokenIndexes[owner][quadkey][tokenId];
+        return _ownerTokenIndexes[owner][tokenId];
     }
 
     /// @notice A descriptive name for a collection of NFTs in this contract
@@ -228,110 +261,46 @@ contract Lands is ERC165, ILands, Pausable {
         __symbol = _symbol;
     }
 
-    function createToken(string memory tokenId, uint64 interval) public override whenNotPaused {
-        require(msg.sender == _creator || _authorised[_creator][msg.sender], "createToken: sender does not have permission");
-        require(bytes(tokenId).length > 0, "createToken: token id is null");
-        require(!_created[tokenId], "createToken: token Id is created");
-
-        uint oldLength = _tokenIDs.length;
-        _tokenIDs.push(tokenId);
-        uint i = 0;
-        while (i < oldLength) {
-            if (_interval[_tokenIDs[i]] > interval) {
-                break;
-            }
-            i++;
-        }
-        if (i < oldLength) {
-            for (uint j = oldLength; j > i; j--) {
-                _tokenIDs[j] = _tokenIDs[j - 1];
-                _tokenIndexes[_tokenIDs[j]] = j;
-            }
-            _tokenIDs[i] = tokenId;
-        }
-        _created[tokenId] = true;
-        _tokenIndexes[tokenId] = i;
-        _interval[tokenId] = interval;
-        _totalSupply.totalIdSupplies = _totalSupply.totalIdSupplies.add(1);
-    }
-
-    function getTokenIDs() public override view returns(string[] memory) {
-        return _tokenIDs;
-    }
     /// @notice Mints more tokens, can only be called by contract creator and
     /// all newly minted tokens will belong to creator.
     /// @dev check if token id is duplicated, or null or burned. Throw if msg.sender is not creator
     /// @param tokenId array of extra tokens to mint.
     /// @param amount number of token.
-    function issueToken(address to, string memory quadkey, string memory tokenId, uint256 amount) public override whenNotPaused {
-        require(msg.sender == _creator || _authorised[_creator][msg.sender], "issueToken: sender does not have permission");
+    function issueToken(address to, string memory tokenId, uint256 amount) public override whenNotPaused {
+        require(msg.sender == _creator || _authorised[_creator][msg.sender], "issueToken: sender does not have permission.");
         require(address(0) != to, "issueToken: issue token for zero address");
         require(bytes(tokenId).length > 0, "issueToken: token id is null");
-        require(isValidToken(tokenId), "issueToken: token Id is invalid");
 
+        if (!_created[tokenId]) {
+            _created[tokenId] = true;
+            _tokenIndexes[tokenId] = _tokenIDs.length;
+            _tokenIDs.push(tokenId);
+            _totalSupply.totalIdSupplies = _totalSupply.totalIdSupplies.add(1);
+        }
         _totalSupply.totalTokenSupples = _totalSupply.totalTokenSupples.add(amount);
 
-        if (!_isOwners[to][quadkey][tokenId]) {
-            _isOwners[to][quadkey][tokenId] = true;
-            Tokens memory token;
+        _ownerTotalTokenBalance[to] = _ownerTotalTokenBalance[to].add(amount);
+         if (!_isOwners[to][tokenId]) {
+            _isOwners[to][tokenId] = true;
+            QuadKeyInfo memory token;
             token.id = tokenId;
             token.balance = amount;
-            token.timestamp = uint64(block.timestamp % 2**64);
-            _ownerTokenIndexes[to][quadkey][tokenId] = _ownerTokens[to][quadkey].length;
-            _ownerTokens[to][quadkey].push(token);
-        } else {
-            uint256 index = _ownerTokenIndexes[to][quadkey][tokenId];
-            _ownerTokens[to][quadkey][index].balance = _ownerTokens[to][quadkey][index].balance.add(amount);
-            _ownerTokens[to][quadkey][index].timestamp = uint64(block.timestamp % 2**64);
-        }
+            _ownerTokenIndexes[to][tokenId] = _ownerTokens[to].length;
+            _ownerTokens[to].push(token);
+         } else {
+            uint256 index = _ownerTokenIndexes[to][tokenId];
+            _ownerTokens[to][index].balance = _ownerTokens[to][index].balance.add(amount);
+         }
 
-        emit Transfer(msg.sender, to, quadkey, tokenId, amount);
+        emit Transfer(msg.sender, to, tokenId, amount);
     }
 
     /// @notice get list of token ids of an owner
     /// @dev throw if 'owner' is zero address
     /// @param owner address of owner
     /// @return list of token ids of owner
-    function getTokensOfOwner(address owner, string memory quadkey) external override view returns(Tokens[] memory) {
-        return _ownerTokens[owner][quadkey];
-    }
-
-    /// @notice get token timestamp
-    /// @dev throw if token is not valid
-    /// @param tokenId id of the token
-    /// @return token timestamp
-    function getTokenTimestamp(address owner, string memory quadkey, string memory tokenId) external view returns(uint64) {
-        require(isValidToken(tokenId), "getTokenTimestamp: token id is invalid.");
-        require(isOwnerOf(owner, quadkey, tokenId), "getTokenTimestamp: requrest for address not be an owner of token");
-
-        uint256 index = _ownerTokenIndexes[owner][quadkey][tokenId];
-        return _ownerTokens[owner][quadkey][index].timestamp;
-    }
-
-    /// @notice change the token timestamp. only creator or operator of creator can change it
-    /// @dev throw unless token id is valid.
-    /// @param tokenId id of token
-    /// @param newTimestamp new value of token timestamp
-    function updateTokenTimestamp(address owner, string memory quadkey, string memory tokenId, uint64 newTimestamp) external override whenNotPaused {
-        require(msg.sender == _creator || _authorised[_creator][msg.sender], "updateTokenTimestamp: sender does not have permission");
-        require(isValidToken(tokenId), "updateTokenTimestamp: token id is invalid");
-        require(isOwnerOf(owner, quadkey, tokenId), "updateTokenTimestamp: requrest for address not be an owner of token");
-
-        uint256 index = _ownerTokenIndexes[owner][quadkey][tokenId];
-        _ownerTokens[owner][quadkey][index].timestamp = newTimestamp;
-    }
-
-    function getTokenInterval(string memory tokenId) external override view returns(uint64) {
-        require(isValidToken(tokenId), "Lands >> getTokenInterval: token id is invalid");
-
-        return _interval[tokenId];
-    }
-
-    function setTokenInterval(string memory tokenId, uint64 interval) public {
-        require(msg.sender == _creator || _authorised[_creator][msg.sender], "setTokenInterval: not permission");
-        require(interval > 0, "setTokenInterval: interval is negative");
-
-        _interval[tokenId] = interval;
+    function getTokensOfOwner(address owner) external override view returns(QuadKeyInfo[] memory) {
+        return _ownerTokens[owner];
     }
 
     /// @notice Checks if a given tokenId is valid
