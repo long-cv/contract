@@ -3,9 +3,13 @@
   "version": "1.0.0",
   "main": "index.js",
   "license": "MIT",
+  "scripts": {
+    "compile": "truffle compile",
+    "migrate": "truffle migrate --network testnet --f 4 --to 4",
+    "verify": "truffle run verify Pairs@0x7FeDd19731ea776ffcd90CE28D4c5966FE821773 --network rinkeby --debug --license GPL-3.0"
+  },
   "dependencies": {
-    "@harmony-js-time/core": "^0.1.59",
-    "@harmony-js/core": "^0.1.55",
+    "@harmony-js/core": "^0.1.56",
     "dotenv": "^8.2.0",
     "tslib": "^2.0.3"
   }
