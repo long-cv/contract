@@ -28,6 +28,7 @@ contract QuadKey is ERC165, IQuadKey, Pausable {
     string[] internal _tokenIDs; // array of tokenId
     mapping(string => uint256) internal _tokenIndexes; // index of tokenId in array of tokenId
     Supplies _totalSupply; // total of all tokens supplied
+    mapping(string => address[]) internal _owners; // list of owner of land
     mapping(string => bool) internal _created; // token is created
 
     address _lands; // addres of lands
@@ -36,7 +37,7 @@ contract QuadKey is ERC165, IQuadKey, Pausable {
     /// @notice Contract constructor
     /// @param tokenName The name of token
     /// @param tokenSymbol The symbol of token
-    constructor(address creator, string memory tokenName, string memory tokenSymbol, address lands, string memory baseLand) ERC165() {
+    constructor(address creator, string memory tokenName, string memory tokenSymbol, address lands, string memory baseLand) {
         _creator = creator;
 
         _name = tokenName;
@@ -48,6 +49,7 @@ contract QuadKey is ERC165, IQuadKey, Pausable {
         _supportedInterfaces[
             this.balanceOf.selector ^
             this.isOwnerOf.selector ^
+            this.ownerOf.selector ^
             bytes4(keccak256("safeTransferFrom(address,address,string,string,uint256,bytes)")) ^
             bytes4(keccak256("safeTransferFrom(address,address,string,string,uint256)")) ^
             this.transferFrom.selector ^
@@ -68,8 +70,8 @@ contract QuadKey is ERC165, IQuadKey, Pausable {
     }
 
     function setCreator(address creator) external {
-        require(msg.sender == _creator, "setCreator: not creator");
-        require(address(0) == creator, "setCreator: creator can not be zero address");
+        require(msg.sender == _creator, "QuadKey >> setCreator: not creator");
+        require(address(0) == creator, "QuadKey >> setCreator: creator can not be zero address");
         
         _creator = creator;
     }
@@ -89,9 +91,15 @@ contract QuadKey is ERC165, IQuadKey, Pausable {
     /// @param tokenId The identifier for an NFT
     /// @return true if is owner, false if not
     function isOwnerOf(address owner, string memory tokenId) public override view returns (bool) {
-        require(isValidToken(tokenId), "isOwnerOf: token is not valid.");
+        require(isValidToken(tokenId), "QuadKey >> isOwnerOf: token is not valid.");
 
         return _isOwners[owner][tokenId];
+    }
+
+    function ownerOf(string memory tokenId) external override view returns (address[] memory) {
+        require(isValidToken(tokenId), "QuadKey >> ownerOf: token is not valid.");
+
+        return _owners[tokenId];
     }
 
     /// @notice Transfers number of an NFT from one address to another address
@@ -142,19 +150,20 @@ contract QuadKey is ERC165, IQuadKey, Pausable {
     /// @param tokenId The NFT to transfer
     /// @param amount The amount of NFT to transfer
     function transferFrom(address from, address to, string memory tokenId, string memory landId, uint256 amount) public override whenNotPaused {
-        require(isOwnerOf(from, tokenId), "transferFrom: requrest for address not be an owner of token");
-        require(msg.sender == _creator || _authorised[_creator][msg.sender], "transferFrom: sender does not have permission");
-        require(from != to, "transferFrom: source and destination address are same.");
-        require(address(0) != to, "transferFrom: transfer to zero address.");
-        require(isValidToken(tokenId), "transferFrom: token id is invalid");
+        require(isOwnerOf(from, tokenId), "QuadKey >> transferFrom: requrest for address not be an owner of token");
+        require(msg.sender == _creator || _authorised[_creator][msg.sender], "QuadKey >> transferFrom: sender does not have permission");
+        require(from != to, "QuadKey >> transferFrom: source and destination address are same.");
+        require(address(0) != to, "QuadKey >> transferFrom: transfer to zero address.");
+        require(isValidToken(tokenId), "QuadKey >> transferFrom: token id is invalid");
 
         uint256 index = _ownerTokenIndexes[from][tokenId];
-        _ownerTokens[from][index].balance = _ownerTokens[from][index].balance.sub(amount, "transferFrom: amount exceeds token balance");
+        _ownerTokens[from][index].balance = _ownerTokens[from][index].balance.sub(amount, "QuadKey >> transferFrom: amount exceeds token balance");
         _ownerTotalTokenBalance[from] = _ownerTotalTokenBalance[from].sub(amount);
 
         _ownerTotalTokenBalance[to] = _ownerTotalTokenBalance[to].add(amount);
         if (!_isOwners[to][tokenId]) {
             _isOwners[to][tokenId] = true;
+            _owners[tokenId].push(to);
             _ownerTokenIndexes[to][tokenId] = _ownerTokens[to].length;
             QuadKeyInfo memory land;
             land.id = tokenId;
@@ -178,9 +187,9 @@ contract QuadKey is ERC165, IQuadKey, Pausable {
     /// @param tokenId The NFT to approve
     /// @param amount number of NFT to approve
     function approve(address owner, address spender, string memory tokenId, uint256 amount) public override whenNotPaused {
-        require(isOwnerOf(owner, tokenId), "approve: requrest for address not be an owner of token");
-        require(msg.sender == owner || _authorised[owner][msg.sender], "approve: sender does not have permission");
-        require(spender != address(0), "approve to the zero address");
+        require(isOwnerOf(owner, tokenId), "QuadKey >> approve: requrest for address not be an owner of token");
+        require(msg.sender == owner || _authorised[owner][msg.sender], "QuadKey >> approve: sender does not have permission");
+        require(spender != address(0), "QuadKey >> approve to the zero address");
 
         _allowances[owner][spender][tokenId] = amount;
         emit Approval(owner, spender, tokenId, amount);
@@ -205,7 +214,7 @@ contract QuadKey is ERC165, IQuadKey, Pausable {
     /// @param tokenId The NFT id
     /// @return The approved amount for this NFT
     function getApproved(address owner, address spender, string memory tokenId) external override view returns (uint256) {
-        require(isValidToken(tokenId), "getApproved: token id is invalid");
+        require(isValidToken(tokenId), "QuadKey >> getApproved: token id is invalid");
 
         return _allowances[owner][spender][tokenId];
     }
@@ -231,7 +240,7 @@ contract QuadKey is ERC165, IQuadKey, Pausable {
     /// @return The token identifier for the `index`th NFT,
     ///  (sort order not specified)
     function tokenByIndex(uint256 index) external override view returns (string memory) {
-        require(index < _tokenIDs.length);
+        require(index < _tokenIDs.length, "QuadKey >> tokenByIndex: index is invalid");
         return _tokenIDs[index];
     }
 
@@ -243,7 +252,7 @@ contract QuadKey is ERC165, IQuadKey, Pausable {
     /// @return The token identifier for the `index`th NFT assigned to `owner`,
     ///   (sort order not specified)
     function tokenOfOwnerByIndex(address owner, uint256 index) external override view returns (QuadKeyInfo memory) {
-        require(index < _ownerTokens[owner].length, "tokenOfOwnerByIndex: index is invalid");
+        require(index < _ownerTokens[owner].length, "QuadKey >> tokenOfOwnerByIndex: index is invalid");
         return _ownerTokens[owner][index];
     }
 
@@ -255,8 +264,8 @@ contract QuadKey is ERC165, IQuadKey, Pausable {
     /// @return The token identifier for the `index`th NFT assigned to `owner`,
     ///   (sort order not specified)
     function tokenIndexOfOwnerById(address owner, string memory tokenId) external override view returns (uint256) {
-        require(isOwnerOf(owner, tokenId), "tokenIndexOfOwnerById: requrest for address not be an owner of token");
-        require(isValidToken(tokenId), "tokenIndexOfOwnerById: token id is invalid.");
+        require(isOwnerOf(owner, tokenId), "QuadKey >> tokenIndexOfOwnerById: requrest for address not be an owner of token");
+        require(isValidToken(tokenId), "QuadKey >> tokenIndexOfOwnerById: token id is invalid.");
         return _ownerTokenIndexes[owner][tokenId];
     }
 
@@ -285,9 +294,9 @@ contract QuadKey is ERC165, IQuadKey, Pausable {
     /// @param tokenId array of extra tokens to mint.
     /// @param amount number of token.
     function issueToken(address to, string memory tokenId, string memory landId, uint256 amount) public override whenNotPaused {
-        require(msg.sender == _creator || _authorised[_creator][msg.sender], "issueToken: sender does not have permission.");
-        require(address(0) != to, "issueToken: issue token for zero address");
-        require(bytes(tokenId).length > 0, "issueToken: token id is null");
+        require(msg.sender == _creator || _authorised[_creator][msg.sender], "QuadKey >> issueToken: sender does not have permission.");
+        require(address(0) != to, "QuadKey >> issueToken: issue token for zero address");
+        require(bytes(tokenId).length > 0, "QuadKey >> issueToken: token id is null");
 
         if (!_created[tokenId]) {
             _created[tokenId] = true;
@@ -300,6 +309,7 @@ contract QuadKey is ERC165, IQuadKey, Pausable {
         _ownerTotalTokenBalance[to] = _ownerTotalTokenBalance[to].add(amount);
         if (!_isOwners[to][tokenId]) {
             _isOwners[to][tokenId] = true;
+            _owners[tokenId].push(to);
             QuadKeyInfo memory token;
             token.id = tokenId;
             token.balance = amount;

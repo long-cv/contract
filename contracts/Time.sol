@@ -13,9 +13,9 @@ contract Time is ERC20Mintable, Pausable {
     mapping(address => mapping(address => bool)) internal _authorised;
     event ApprovalForAll(address indexed sender, address indexed operator, bool approved);
 
-    constructor(address mintTo, uint _totalSupply, string memory _name, string memory _symbol, uint8 _decimals) ERC20Mintable(_name, _symbol, _decimals, mintTo) {
+    constructor(address minter, uint _totalSupply, string memory _name, string memory _symbol, uint8 _decimals) ERC20Mintable(_name, _symbol, _decimals) {
         uint256 totalSupply = _totalSupply * (10 ** uint256(decimals()));
-        mint(mintTo, totalSupply);       
+        mint(minter, totalSupply);       
     }
 
     function transfer(address to, uint256 value) public override whenNotPaused returns (bool) {
@@ -24,7 +24,7 @@ contract Time is ERC20Mintable, Pausable {
 
     function transferFrom(address from, address to, uint256 value) public override whenNotPaused returns (bool) {
         uint256 allowances = allowance(from, _msgSender());
-        require(_msgSender() == from || isApprovedForAll(from, _msgSender()) || allowances >= value, "transferFrom: sender does not have permission");
+        require(_msgSender() == from || isApprovedForAll(from, _msgSender()) || allowances >= value, "Time >> transferFrom: sender does not have permission");
         _transfer(from, to, value);
         if (_msgSender() != from && !isApprovedForAll(from, _msgSender())) _approve(from, _msgSender(), allowances - value);
         return true;

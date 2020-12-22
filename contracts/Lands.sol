@@ -29,7 +29,7 @@ contract Lands is ERC165, ILands, Pausable {
     /// @notice Contract constructor
     /// @param tokenName The name of token
     /// @param tokenSymbol The symbol of token
-    constructor(address creator, string memory tokenName, string memory tokenSymbol, string[] memory initIDs, uint64[] memory initInterval) ERC165() {
+    constructor(address creator, string memory tokenName, string memory tokenSymbol, string[] memory initIDs, uint64[] memory initInterval) {
         _creator = creator;
 
         _name = tokenName;
@@ -51,6 +51,7 @@ contract Lands is ERC165, ILands, Pausable {
             this.symbol.selector ^
             this.createToken.selector ^
             this.getTokenIDs.selector ^
+            this.upgradeLand.selector ^
             this.issueToken.selector ^
             this.getTokensOfOwner.selector
         ] = true;
@@ -65,8 +66,8 @@ contract Lands is ERC165, ILands, Pausable {
     }
 
     function setCreator(address creator) external {
-        require(msg.sender == _creator, "setCreator: not creator");
-        require(address(0) == creator, "setCreator: creator can not be zero address");
+        require(msg.sender == _creator, "Lands >> setCreator: not creator");
+        require(address(0) == creator, "Lands >> setCreator: creator can not be zero address");
         
         _creator = creator;
     }
@@ -77,7 +78,7 @@ contract Lands is ERC165, ILands, Pausable {
     /// @param tokenId The identifier for an NFT
     /// @return true if is owner, false if not
     function isOwnerOf(address owner, string memory quadkey, string memory tokenId) public override view returns (bool) {
-        require(isValidToken(tokenId), "isOwnerOf: token is not valid.");
+        require(isValidToken(tokenId), "Lands >> isOwnerOf: token is not valid.");
 
         return _isOwners[owner][quadkey][tokenId];
     }
@@ -130,10 +131,10 @@ contract Lands is ERC165, ILands, Pausable {
     /// @param tokenId The NFT to transfer
     /// @param amount The amount of NFT to transfer
     function transferFrom(address from, address to, string memory quadkey, string memory tokenId, uint256 amount) public override whenNotPaused {
-        require(msg.sender == _creator || _authorised[_creator][msg.sender], "transferFrom: sender does not have permission");
-        require(from != to, "transferFrom: source and destination address are same.");
-        require(address(0) != to, "transferFrom: transfer to zero address.");
-        require(isValidToken(tokenId), "transferFrom: token id is invalid");
+        require(msg.sender == _creator || _authorised[_creator][msg.sender], "Lands >> transferFrom: sender does not have permission");
+        require(from != to, "Lands >> transferFrom: source and destination address are same.");
+        require(address(0) != to, "Lands >> transferFrom: transfer to zero address.");
+        require(isValidToken(tokenId), "Lands >> transferFrom: token id is invalid");
 
         uint256 index = _ownerTokenIndexes[from][quadkey][tokenId];
         _ownerTokens[from][quadkey][index].balance = _ownerTokens[from][quadkey][index].balance.sub(amount, "transferFrom: amount exceeds token balance");
@@ -188,7 +189,7 @@ contract Lands is ERC165, ILands, Pausable {
     /// @return The token identifier for the `index`th NFT,
     ///  (sort order not specified)
     function tokenByIndex(uint256 index) external override view returns (string memory) {
-        require(index < _tokenIDs.length);
+        require(index < _tokenIDs.length, "Lands >> tokenByIndex: index is invalid");
         return _tokenIDs[index];
     }
 
@@ -200,7 +201,7 @@ contract Lands is ERC165, ILands, Pausable {
     /// @return The token identifier for the `index`th NFT assigned to `owner`,
     ///   (sort order not specified)
     function tokenOfOwnerByIndex(address owner, string memory quadkey, uint256 index) external override view returns (Tokens memory) {
-        require(index < _ownerTokens[owner][quadkey].length, "tokenOfOwnerByIndex: index is invalid");
+        require(index < _ownerTokens[owner][quadkey].length, "Lands >> tokenOfOwnerByIndex: index is invalid");
         return _ownerTokens[owner][quadkey][index];
     }
 
@@ -212,8 +213,8 @@ contract Lands is ERC165, ILands, Pausable {
     /// @return The token identifier for the `index`th NFT assigned to `owner`,
     ///   (sort order not specified)
     function tokenIndexOfOwnerById(address owner, string memory quadkey, string memory tokenId) external override view returns (uint256) {
-        require(isOwnerOf(owner, quadkey, tokenId), "tokenIndexOfOwnerById: requrest for address not be an owner of token");
-        require(isValidToken(tokenId), "tokenIndexOfOwnerById: token id is invalid.");
+        require(isOwnerOf(owner, quadkey, tokenId), "Lands >> tokenIndexOfOwnerById: requrest for address not be an owner of token");
+        require(isValidToken(tokenId), "Lands >> tokenIndexOfOwnerById: token id is invalid.");
         return _ownerTokenIndexes[owner][quadkey][tokenId];
     }
 
@@ -228,9 +229,9 @@ contract Lands is ERC165, ILands, Pausable {
     }
 
     function createToken(string memory tokenId, uint64 interval) public override whenNotPaused {
-        require(msg.sender == _creator || _authorised[_creator][msg.sender], "createToken: sender does not have permission");
-        require(bytes(tokenId).length > 0, "createToken: token id is null");
-        require(!_created[tokenId], "createToken: token Id is created");
+        require(msg.sender == _creator || _authorised[_creator][msg.sender], "Lands >> createToken: sender does not have permission");
+        require(bytes(tokenId).length > 0, "Lands >> createToken: token id is null");
+        require(!_created[tokenId], "Lands >> createToken: token Id is created");
 
         uint oldLength = _tokenIDs.length;
         _tokenIDs.push(tokenId);
@@ -291,10 +292,10 @@ contract Lands is ERC165, ILands, Pausable {
     /// @param tokenId array of extra tokens to mint.
     /// @param amount number of token.
     function issueToken(address to, string memory quadkey, string memory tokenId, uint256 amount) public override whenNotPaused {
-        require(msg.sender == _creator || _authorised[_creator][msg.sender], "issueToken: sender does not have permission");
-        require(address(0) != to, "issueToken: issue token for zero address");
-        require(bytes(tokenId).length > 0, "issueToken: token id is null");
-        require(isValidToken(tokenId), "issueToken: token Id is invalid");
+        require(msg.sender == _creator || _authorised[_creator][msg.sender], "Lands >> issueToken: sender does not have permission");
+        require(address(0) != to, "Lands >> issueToken: issue token for zero address");
+        require(bytes(tokenId).length > 0, "Lands >> issueToken: token id is null");
+        require(isValidToken(tokenId), "Lands >> issueToken: token Id is invalid");
 
         _totalSupply.totalTokenSupples = _totalSupply.totalTokenSupples.add(amount);
 
@@ -328,8 +329,8 @@ contract Lands is ERC165, ILands, Pausable {
     /// @param tokenId id of the token
     /// @return token timestamp
     function getTokenTimestamp(address owner, string memory quadkey, string memory tokenId) external view returns(uint64) {
-        require(isValidToken(tokenId), "getTokenTimestamp: token id is invalid.");
-        require(isOwnerOf(owner, quadkey, tokenId), "getTokenTimestamp: requrest for address not be an owner of token");
+        require(isValidToken(tokenId), "Lands >> getTokenTimestamp: token id is invalid.");
+        require(isOwnerOf(owner, quadkey, tokenId), "Lands >> getTokenTimestamp: requrest for address not be an owner of token");
 
         uint256 index = _ownerTokenIndexes[owner][quadkey][tokenId];
         return _ownerTokens[owner][quadkey][index].timestamp;
@@ -340,9 +341,9 @@ contract Lands is ERC165, ILands, Pausable {
     /// @param tokenId id of token
     /// @param newTimestamp new value of token timestamp
     function updateTokenTimestamp(address owner, string memory quadkey, string memory tokenId, uint64 newTimestamp) external override whenNotPaused {
-        require(msg.sender == _creator || _authorised[_creator][msg.sender], "updateTokenTimestamp: sender does not have permission");
-        require(isValidToken(tokenId), "updateTokenTimestamp: token id is invalid");
-        require(isOwnerOf(owner, quadkey, tokenId), "updateTokenTimestamp: requrest for address not be an owner of token");
+        require(msg.sender == _creator || _authorised[_creator][msg.sender], "Lands >> updateTokenTimestamp: sender does not have permission");
+        require(isValidToken(tokenId), "Lands >> updateTokenTimestamp: token id is invalid");
+        require(isOwnerOf(owner, quadkey, tokenId), "Lands >> updateTokenTimestamp: requrest for address not be an owner of token");
 
         uint256 index = _ownerTokenIndexes[owner][quadkey][tokenId];
         _ownerTokens[owner][quadkey][index].timestamp = newTimestamp;
@@ -355,8 +356,8 @@ contract Lands is ERC165, ILands, Pausable {
     }
 
     function setTokenInterval(string memory tokenId, uint64 interval) public {
-        require(msg.sender == _creator || _authorised[_creator][msg.sender], "setTokenInterval: not permission");
-        require(interval > 0, "setTokenInterval: interval is negative");
+        require(msg.sender == _creator || _authorised[_creator][msg.sender], "Lands >> setTokenInterval: not permission");
+        require(interval > 0, "Lands >> setTokenInterval: interval is negative");
 
         _interval[tokenId] = interval;
     }

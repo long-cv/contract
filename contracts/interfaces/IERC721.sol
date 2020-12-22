@@ -28,6 +28,8 @@ interface IERC721 /* is ERC165 */ {
 
     function isOwnerOf(address owner, string memory tokenId) external view returns (bool);
 
+    function ownerOf(string memory tokenId) external view returns (address[] memory);
+
     function approve(address owner, address spender, string memory tokenId, uint256 amount) external;
 
     function setApprovalForAll(address operator, bool approved) external;
