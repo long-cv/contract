@@ -1,5 +1,5 @@
 //SPDX-License-Identifier: GPL-3.0
-pragma solidity ^0.7.0;
+pragma solidity ^0.7.4;
 
 /// @title ERC-721 Non-Fungible Token Standard
 /// @dev See https://eips.ethereum.org/EIPS/eip-721
@@ -27,12 +27,6 @@ interface IERC721 /* is ERC165 */ {
     function balanceOf(address owner) external view returns (uint256);
 
     function isOwnerOf(address owner, string memory tokenId) external view returns (bool);
-
-    function safeTransferFrom(address from, address to, string memory tokenId, uint256 amount, bytes memory data) external;
-
-    function safeTransferFrom(address from, address to, string memory tokenId, uint256 amount) external;
-
-    function transferFrom(address from, address to, string memory tokenId, uint256 amount) external;
 
     function approve(address owner, address spender, string memory tokenId, uint256 amount) external;
 

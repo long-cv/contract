@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0
-pragma solidity 0.7.0;
+pragma solidity 0.7.4;
 
 /// @title ERC-721 Non-Fungible Token Standard, optional metadata extension
 /// @dev See https://eips.ethereum.org/EIPS/eip-721

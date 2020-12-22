@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0
-pragma solidity 0.7.0;
+pragma solidity 0.7.4;
 pragma experimental ABIEncoderV2;
 
 import "./ERC165.sol";
@@ -27,13 +27,13 @@ contract Lands is ERC165, ILands, Pausable {
     mapping(string => bool) internal _created; // token is created
 
     /// @notice Contract constructor
-    /// @param name The name of token
-    /// @param symbol The symbol of token
-    constructor(address creator, string memory name, string memory symbol, string[] memory initIDs, uint64[] memory initInterval) ERC165() {
+    /// @param tokenName The name of token
+    /// @param tokenSymbol The symbol of token
+    constructor(address creator, string memory tokenName, string memory tokenSymbol, string[] memory initIDs, uint64[] memory initInterval) ERC165() {
         _creator = creator;
 
-        _name = name;
-        _symbol = symbol;
+        _name = tokenName;
+        _symbol = tokenSymbol;
 
         //Add to ERC165 Interface Check
         _supportedInterfaces[
@@ -137,7 +137,6 @@ contract Lands is ERC165, ILands, Pausable {
 
         uint256 index = _ownerTokenIndexes[from][quadkey][tokenId];
         _ownerTokens[from][quadkey][index].balance = _ownerTokens[from][quadkey][index].balance.sub(amount, "transferFrom: amount exceeds token balance");
-        _ownerTokens[from][quadkey][index].timestamp = uint64(block.timestamp % 2**64);
 
         if (!_isOwners[to][quadkey][tokenId]) {
             _isOwners[to][quadkey][tokenId] = true;
@@ -258,6 +257,34 @@ contract Lands is ERC165, ILands, Pausable {
     function getTokenIDs() public override view returns(string[] memory) {
         return _tokenIDs;
     }
+
+    function upgradeLand(address owner, string memory quadkey, string memory fromLandId, string memory toLandId, uint256 amount) external override whenNotPaused {
+        require(msg.sender == _creator || _authorised[_creator][msg.sender], "Lands >> upgradeLand: sender does not have permission");
+        require(isValidToken(fromLandId), "Lands >> upgradeLand: from token Id is invalid");
+        require(isValidToken(toLandId), "Lands >> upgradeLand: to token Id is invalid");
+        require(_interval[toLandId] < _interval[fromLandId], "Lands >> upgradeLand: not allow downgrading land");
+        require(isOwnerOf(owner, quadkey, fromLandId), "Lands >> upgradeLand: not own land upgrading from yet");
+
+        uint256 index = _ownerTokenIndexes[owner][quadkey][fromLandId];
+        _ownerTokens[owner][quadkey][index].balance = _ownerTokens[owner][quadkey][index].balance.sub(amount, "Lands >> upgradeLand: upgrade an amount greater than owning");
+
+        if (_isOwners[owner][quadkey][toLandId]) {
+            index = _ownerTokenIndexes[owner][quadkey][toLandId];
+            _ownerTokens[owner][quadkey][index].balance = _ownerTokens[owner][quadkey][index].balance.add(amount);
+            _ownerTokens[owner][quadkey][index].timestamp = uint64(block.timestamp % 2**64);
+        } else {
+            _isOwners[owner][quadkey][toLandId] = true;
+            Tokens memory token;
+            token.id = toLandId;
+            token.balance = amount;
+            token.timestamp = uint64(block.timestamp % 2**64);
+            _ownerTokenIndexes[owner][quadkey][toLandId] = _ownerTokens[owner][quadkey].length;
+            _ownerTokens[owner][quadkey].push(token);
+        }
+
+        emit UpgradeLand(owner, quadkey, fromLandId, toLandId, amount);
+    }
+
     /// @notice Mints more tokens, can only be called by contract creator and
     /// all newly minted tokens will belong to creator.
     /// @dev check if token id is duplicated, or null or burned. Throw if msg.sender is not creator

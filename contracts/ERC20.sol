@@ -3,7 +3,7 @@
 */
 
 //SPDX-License-Identifier: GPL-3.0
-pragma solidity ^0.7.0;
+pragma solidity ^0.7.4;
 
 import "./interfaces/IERC20.sol";
 import "./libraries/SafeMath.sol";
@@ -24,10 +24,10 @@ contract ERC20 is Context, IERC20 {
 
     uint256 private _totalSupply;
 
-     constructor (string memory name, string memory symbol, uint8 decimals) {
-        _name = name;
-        _symbol = symbol;
-        _decimals = decimals;
+     constructor (string memory tokenName, string memory tokenSymbol, uint8 tokenDecimals) {
+        _name = tokenName;
+        _symbol = tokenSymbol;
+        _decimals = tokenDecimals;
     }
 
     function name() public override view returns (string memory) {

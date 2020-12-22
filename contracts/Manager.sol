@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0
-pragma solidity 0.7.0;
+pragma solidity 0.7.4;
 pragma experimental ABIEncoderV2;
 
 import "./interfaces/ILands.sol";
@@ -17,25 +17,33 @@ contract Manager {
     }
 
     address _creator;
-    address _supplier;
+    address _rewardSupplier;
     address _time;
     address _quadkey;
     address _lands;
     mapping(address => mapping(address => bool)) internal _authorised;
     bytes4 private constant ERC20_TRANSFER_FROM_SELECTOR = bytes4(keccak256(bytes('transferFrom(address,address,uint256)')));
     uint64 _intevalKind;
+    
+    mapping(address => uint256) _reserve; // reserve allow user buying or upgrading land
+    uint256 _landPrice;
+    uint256 _upgradableBasePrice;
+    uint8 _decimals;
 
     event ClaimRewardOfLand(address indexed owner, string quadkey, string landId, uint256 reward);
     event ApprovalForAll(address indexed owner, address indexed operator, bool approved);
     event Transfer(address indexed from, address indexed to, string quadkey, string landId, uint256 amount);
 
-    constructor(address creator, address time, address quadkey, address lands) {
+    constructor(address creator, address time, address lands, address quadkey, uint256 landPrice, uint256 upgradableBasePrice, uint64 intervalKind) {
         _creator = creator;
-        _supplier = _creator;
+        _rewardSupplier = _creator;
         _time = time;
         _quadkey = quadkey;
         _lands = lands;
-        _intevalKind = 1 days;
+        _decimals = IERC20(_time).decimals();
+        _landPrice = landPrice * (10**_decimals);
+        _upgradableBasePrice = upgradableBasePrice * (10**_decimals);
+        _intevalKind = intervalKind;
     }
 
     function setCreator(address creator) external {
@@ -49,7 +57,7 @@ contract Manager {
         require(msg.sender == _creator, "setSupplier: not creator");
         require(address(0) == supplier, "setSupplier: supplier can not be zero address");
 
-        _supplier = supplier;
+        _rewardSupplier = supplier;
     }
 
     function setApprovalForAll(address operator, bool approved) external {
@@ -103,22 +111,61 @@ contract Manager {
         return string(s);
     }
 
-    function issueLand(address to, string memory quadkey, string memory landId, uint256 amount) public {
+    function deposit(uint256 amount) external {
+        address sender = msg.sender;
+        safeTransferFrom(_time, sender, address(this), amount);
+        _reserve[sender] = _reserve[sender].add(amount);
+    }
+
+    function withdraw(uint256 amount) external {
+        address sender = msg.sender;
+        _reserve[sender] = _reserve[sender].sub(amount, "Manager >> withdraw: the reserve is not enough");
+        safeTransferFrom(_time, address(this), sender, amount);
+    }
+
+    function getReserve(address owner) external view returns(uint256) {
+        return _reserve[owner];
+    }
+
+    function buyLand(string memory quadkey, uint256 amount) external {
+        require(IQuadKey(_quadkey).isOwnerOf(msg.sender, quadkey), "Manager >> buyLand: not owner");
+        uint256 price = amount * _landPrice;
+        _reserve[msg.sender] = _reserve[msg.sender].sub(price, "Manager >> buyLand: the reserve is not enough");
+
+        safeTransferFrom(_time, address(this), _rewardSupplier, price);
+        IQuadKey(_quadkey).issueToken(msg.sender, quadkey, amount);
+    }
+
+    function upgradeLand(string memory quadkey, string memory fromLandId, string memory toLandId, uint256 amount) external {
+        require(IQuadKey(_quadkey).isOwnerOf(msg.sender, quadkey), "Manager >> upgradeLand: not own this quadkey yet");
+        
+        uint64 fromInterval = ILands(_lands).getTokenInterval(fromLandId);
+        uint64 toInterval = ILands(_lands).getTokenInterval(toLandId);
+        require(toInterval < fromInterval, "Manager >> upgradeLand: not allow downgrading land");
+
+        uint256 price = _upgradableBasePrice.mul(amount).mul(fromInterval / toInterval);
+        _reserve[msg.sender] = _reserve[msg.sender].sub(price, "Manager >> upgradeLand: the reserve is not enough");
+
+        safeTransferFrom(_time, address(this), _rewardSupplier, price);
+        ILands(_lands).upgradeLand(msg.sender, quadkey, fromLandId, toLandId, amount);
+    }
+
+    function issueLand(address to, string memory quadkey, uint256 amount) public {
         require(msg.sender == _creator || _authorised[_creator][msg.sender], "Manager >> issueLand: not have permission");
 
         IQuadKey(_quadkey).issueToken(to, quadkey, amount);
-        ILands(_lands).issueToken(to, quadkey, landId, amount);
+    }
 
-        Transfer(msg.sender, to, quadkey, landId, amount);
+    function issueLand(address to, string memory quadkey, string memory landId, uint256 amount) public {
+        require(msg.sender == _creator || _authorised[_creator][msg.sender], "Manager >> issueLand: not have permission");
+
+        IQuadKey(_quadkey).issueToken(to, quadkey, landId, amount);
     }
 
     function transferLandFrom(address from, address to, string memory quadkey, string memory landId, uint256 amount) public {
         require(msg.sender == from || _authorised[from][msg.sender], "Manager >> transferLandFrom: not have permission");
 
-        IQuadKey(_quadkey).transferFrom(from, to, quadkey, amount);
-        ILands(_lands).transferFrom(from, to, quadkey, landId, amount);
-
-        Transfer(from, to, quadkey, landId, amount);
+        IQuadKey(_quadkey).transferFrom(from, to, quadkey, landId, amount);
     }
 
     function computeTimeRewards(Tokens memory land, uint64 timestamp) private view returns(uint256 reward, uint64 timeLeft) {
@@ -127,16 +174,17 @@ contract Manager {
             uint64 interval = ILands(_lands).getTokenInterval(land.id);
             uint64 intervalInSecond = interval * _intevalKind;
             if (timeElapsed >= intervalInSecond) {
-                reward = land.balance.mul(timeElapsed / intervalInSecond).mul(interval);
+                reward = land.balance.mul(timeElapsed / intervalInSecond).mul(interval).mul(10**_decimals);
                 timeLeft = (timeElapsed % intervalInSecond);
             }
         }
     }
-
+    //retturn "quadkey1:balance:landid1:balance1:reward1:landid2:balance2:reward2: ... ;quadkey2: ..."
     function getTokenInfoList(address owner) public view returns(string memory rewards) {
         uint64 blockTimestamp = uint64(block.timestamp % 2**64);
         QuadKeyInfo[] memory quadkeyList = IQuadKey(_quadkey).getTokensOfOwner(owner);
         bool first = true;
+        rewards = "";
         for (uint i = 0; i < quadkeyList.length; i++) {
             if (quadkeyList[i].balance > 0) {
                 if (first) {
@@ -172,8 +220,7 @@ contract Manager {
         uint64 blockTimestamp = uint64(block.timestamp % 2**64);
         (uint reward, uint64 timeLeft) = computeTimeRewards(land, blockTimestamp);
         if (reward > 0) {
-            uint8 decimals = IERC20(_time).decimals();
-            reward = reward * (10**decimals);
+            reward = reward;
             safeTransfer(_time, owner, reward);
             uint64 tokenTimestamp = blockTimestamp - timeLeft;
             ILands(_lands).updateTokenTimestamp(owner, quadkey, landId, tokenTimestamp);
@@ -215,7 +262,11 @@ contract Manager {
     }
 
     function safeTransfer(address token, address to, uint256 amount) private {
-        (bool success, bytes memory data) = token.call(abi.encodeWithSelector(ERC20_TRANSFER_FROM_SELECTOR, _supplier, to, amount));
+        safeTransferFrom(token, _rewardSupplier, to, amount);
+    }
+
+    function safeTransferFrom(address token, address from, address to, uint256 amount) private {
+        (bool success, bytes memory data) = token.call(abi.encodeWithSelector(ERC20_TRANSFER_FROM_SELECTOR, from, to, amount));
         require(success && (data.length == 0 || abi.decode(data, (bool))), "safeTransfer: failed.");
     }
 }

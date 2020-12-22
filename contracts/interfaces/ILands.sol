@@ -1,5 +1,5 @@
 //SPDX-License-Identifier: GPL-3.0
-pragma solidity ^0.7.0;
+pragma solidity ^0.7.4;
 pragma experimental ABIEncoderV2;
 
 import "./IERC721Metadata.sol";
@@ -9,6 +9,8 @@ interface ILands is IERC721Metadata {
     event Transfer(address indexed from, address indexed to, string quadkey, string tokenId, uint256 amount);
 
     event ApprovalForAll(address indexed owner, address indexed operator, bool approved);
+
+    event UpgradeLand(address indexed owner, string quadkey, string fromLandId, string toLandId, uint256 amount);
 
     function isOwnerOf(address owner, string memory quadkey, string memory tokenId) external view returns (bool);
 
@@ -33,6 +35,8 @@ interface ILands is IERC721Metadata {
     function createToken(string memory tokenId, uint64 interval) external;
 
     function getTokenIDs() external view returns(string[] memory);
+
+    function upgradeLand(address owner, string memory quadkey, string memory fromLandId, string memory toLandId, uint256 amount) external;
 
     function issueToken(address to, string memory quadkey, string memory tokenId, uint256 amount) external;
 

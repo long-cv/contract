@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0
-pragma solidity 0.7.0;
+pragma solidity 0.7.4;
 pragma experimental ABIEncoderV2;
 
 import "./ERC165.sol";
 import "./interfaces/IERC721TokenReceiver.sol";
+import "./interfaces/ILands.sol";
 import "./interfaces/IQuadKey.sol";
 import "./libraries/SafeMath.sol";
 import "./Pausable.sol";
@@ -29,21 +30,26 @@ contract QuadKey is ERC165, IQuadKey, Pausable {
     Supplies _totalSupply; // total of all tokens supplied
     mapping(string => bool) internal _created; // token is created
 
+    address _lands; // addres of lands
+    string _baseLandId;
+
     /// @notice Contract constructor
-    /// @param name The name of token
-    /// @param symbol The symbol of token
-    constructor(address creator, string memory name, string memory symbol) ERC165() {
+    /// @param tokenName The name of token
+    /// @param tokenSymbol The symbol of token
+    constructor(address creator, string memory tokenName, string memory tokenSymbol, address lands, string memory baseLand) ERC165() {
         _creator = creator;
 
-        _name = name;
-        _symbol = symbol;
+        _name = tokenName;
+        _symbol = tokenSymbol;
 
+        _lands = lands;
+        _baseLandId = baseLand;
         //Add to ERC165 Interface Check
         _supportedInterfaces[
             this.balanceOf.selector ^
             this.isOwnerOf.selector ^
-            bytes4(keccak256("safeTransferFrom(address,address,string,uint256,bytes)")) ^
-            bytes4(keccak256("safeTransferFrom(address,address,string,uint256)")) ^
+            bytes4(keccak256("safeTransferFrom(address,address,string,string,uint256,bytes)")) ^
+            bytes4(keccak256("safeTransferFrom(address,address,string,string,uint256)")) ^
             this.transferFrom.selector ^
             this.approve.selector ^
             this.setApprovalForAll.selector ^
@@ -55,7 +61,8 @@ contract QuadKey is ERC165, IQuadKey, Pausable {
             this.tokenIndexOfOwnerById.selector ^
             this.name.selector ^
             this.symbol.selector ^
-            this.issueToken.selector ^
+            bytes4(keccak256("issueToken(address,string,uint256)")) ^
+            bytes4(keccak256("issueToken(address,string,string,uint256)")) ^
             this.getTokensOfOwner.selector
         ] = true;
     }
@@ -97,8 +104,8 @@ contract QuadKey is ERC165, IQuadKey, Pausable {
     /// @param tokenId The NFT to transfer
     /// @param amount The amount of NFT to transfer
     /// @param data Additional data with no specified format, sent in call to `to`
-    function safeTransferFrom(address from, address to, string memory tokenId, uint256 amount, bytes memory data) public override whenNotPaused {
-        transferFrom(from, to, tokenId, amount);
+    function safeTransferFrom(address from, address to, string memory tokenId, string memory landId, uint256 amount, bytes memory data) public override whenNotPaused {
+        transferFrom(from, to, tokenId, landId, amount);
 
         //Get size of "to" address, if 0 it's a wallet
         uint32 size;
@@ -119,8 +126,8 @@ contract QuadKey is ERC165, IQuadKey, Pausable {
     /// @param to The new owner
     /// @param tokenId The NFT to transfer
     /// @param amount The amount of NFT to transfer
-    function safeTransferFrom(address from, address to, string memory tokenId, uint256 amount) public override whenNotPaused {
-        safeTransferFrom(from, to, tokenId, amount, "");
+    function safeTransferFrom(address from, address to, string memory tokenId, string memory landId, uint256 amount) public override whenNotPaused {
+        safeTransferFrom(from, to, tokenId, landId, amount, "");
     }
 
     /// @notice Transfer a number of an NFT -- THE CALLER IS RESPONSIBLE
@@ -134,7 +141,7 @@ contract QuadKey is ERC165, IQuadKey, Pausable {
     /// @param to The new owner
     /// @param tokenId The NFT to transfer
     /// @param amount The amount of NFT to transfer
-    function transferFrom(address from, address to, string memory tokenId, uint256 amount) public override whenNotPaused {
+    function transferFrom(address from, address to, string memory tokenId, string memory landId, uint256 amount) public override whenNotPaused {
         require(isOwnerOf(from, tokenId), "transferFrom: requrest for address not be an owner of token");
         require(msg.sender == _creator || _authorised[_creator][msg.sender], "transferFrom: sender does not have permission");
         require(from != to, "transferFrom: source and destination address are same.");
@@ -157,6 +164,8 @@ contract QuadKey is ERC165, IQuadKey, Pausable {
             index = _ownerTokenIndexes[to][tokenId];
             _ownerTokens[to][index].balance = _ownerTokens[to][index].balance.add(amount);
         }
+
+        ILands(_lands).transferFrom(from, to, tokenId, landId, amount);
 
         emit Transfer(from, to, tokenId, amount);
     }
@@ -267,6 +276,15 @@ contract QuadKey is ERC165, IQuadKey, Pausable {
     /// @param tokenId array of extra tokens to mint.
     /// @param amount number of token.
     function issueToken(address to, string memory tokenId, uint256 amount) public override whenNotPaused {
+        issueToken(to, tokenId, _baseLandId, amount);
+    }
+
+    /// @notice Mints more tokens, can only be called by contract creator and
+    /// all newly minted tokens will belong to creator.
+    /// @dev check if token id is duplicated, or null or burned. Throw if msg.sender is not creator
+    /// @param tokenId array of extra tokens to mint.
+    /// @param amount number of token.
+    function issueToken(address to, string memory tokenId, string memory landId, uint256 amount) public override whenNotPaused {
         require(msg.sender == _creator || _authorised[_creator][msg.sender], "issueToken: sender does not have permission.");
         require(address(0) != to, "issueToken: issue token for zero address");
         require(bytes(tokenId).length > 0, "issueToken: token id is null");
@@ -280,17 +298,19 @@ contract QuadKey is ERC165, IQuadKey, Pausable {
         _totalSupply.totalTokenSupples = _totalSupply.totalTokenSupples.add(amount);
 
         _ownerTotalTokenBalance[to] = _ownerTotalTokenBalance[to].add(amount);
-         if (!_isOwners[to][tokenId]) {
+        if (!_isOwners[to][tokenId]) {
             _isOwners[to][tokenId] = true;
             QuadKeyInfo memory token;
             token.id = tokenId;
             token.balance = amount;
             _ownerTokenIndexes[to][tokenId] = _ownerTokens[to].length;
             _ownerTokens[to].push(token);
-         } else {
+        } else {
             uint256 index = _ownerTokenIndexes[to][tokenId];
             _ownerTokens[to][index].balance = _ownerTokens[to][index].balance.add(amount);
-         }
+        }
+
+        ILands(_lands).issueToken(to, tokenId, landId, amount);
 
         emit Transfer(msg.sender, to, tokenId, amount);
     }
@@ -307,7 +327,7 @@ contract QuadKey is ERC165, IQuadKey, Pausable {
     /// @dev If adding the ability to burn tokens, this function will need to reflect that.
     /// @param tokenId The tokenId to check
     /// @return (bool) True if valid, False if not valid.
-    function isValidToken(string memory tokenId) internal view returns (bool) {
+    function isValidToken(string memory tokenId) public override view returns (bool) {
         return _created[tokenId];
     }
 }

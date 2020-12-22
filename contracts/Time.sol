@@ -3,7 +3,7 @@
 */
 
 //SPDX-License-Identifier: GPL-3.0
-pragma solidity ^0.7.0;
+pragma solidity ^0.7.4;
 
 import "./ERC20Mintable.sol";
 import "./Pausable.sol";
@@ -13,7 +13,7 @@ contract Time is ERC20Mintable, Pausable {
     mapping(address => mapping(address => bool)) internal _authorised;
     event ApprovalForAll(address indexed sender, address indexed operator, bool approved);
 
-    constructor(address mintTo, uint _totalSupply, string memory _name, string memory _symbol, uint8 _decimals) ERC20Mintable(_name, _symbol, _decimals) {
+    constructor(address mintTo, uint _totalSupply, string memory _name, string memory _symbol, uint8 _decimals) ERC20Mintable(_name, _symbol, _decimals, mintTo) {
         uint256 totalSupply = _totalSupply * (10 ** uint256(decimals()));
         mint(mintTo, totalSupply);       
     }
