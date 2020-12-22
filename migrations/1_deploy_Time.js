@@ -1,5 +1,11 @@
 const Time = artifacts.require("Time");
 
-module.exports = function(deployer) {
-  deployer.deploy(Time, "0x7D2c112b3DDB209F81f7d294Fe6196552F3c9C35", 175000000000, "Time", "TIME", 18);
+module.exports = deployer => {
+  const creator = "0x743daf3b561f35bfc21b239d336c2d24581a16b4";
+  const supply = 175000000000;
+  const name = "Time";
+  const symbol = "TIME";
+  const decimals = 18;
+  deployer.deploy(Time, creator, supply, name, symbol, decimals)
+    .then(token => token.addMinter(creator));
 };

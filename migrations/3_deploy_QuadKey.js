@@ -1,9 +1,11 @@
 const QuadKey = artifacts.require("QuadKey");
 
-module.exports = function(deployer) {
-    deployer.deploy(QuadKey, 
-        "0x7D2c112b3DDB209F81f7d294Fe6196552F3c9C35", // creator
-        "QuadKey", "QK", 
-        "", // lands
-        "180");    
+module.exports = deployer => {
+  const creator = "0x743daf3b561f35bfc21b239d336c2d24581a16b4";
+  const name = "QuadKey";
+  const symbol = "QK";
+  const lands = "0x38043F2443fA0c47948d11a03cDF6429473d117A";
+  const baseLand = "180";
+  deployer.deploy(QuadKey, creator, name, symbol, lands, baseLand)
+    .then(qk => qk.addPauser(creator));
 }

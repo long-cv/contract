@@ -14,8 +14,8 @@ contract MinterRole is Context {
 
     Roles.Role private _minters;
 
-    constructor (address minter)  {
-        _addMinter(minter);
+    constructor () {
+        _addMinter(_msgSender());
     }
 
     modifier onlyMinter() {
@@ -47,7 +47,7 @@ contract MinterRole is Context {
 }
 
 contract ERC20Mintable is ERC20, MinterRole {
-    constructor(string memory _name, string memory _symbol, uint8 _decimals, address minter) ERC20(_name, _symbol, _decimals) MinterRole(minter) {}
+    constructor(string memory _name, string memory _symbol, uint8 _decimals) ERC20(_name, _symbol, _decimals) {}
     function mint(address account, uint256 amount) public onlyMinter returns (bool) {
         _mint(account, amount);
         return true;
