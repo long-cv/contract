@@ -1,13 +1,13 @@
 const Manager = artifacts.require("Manager");
 
-module.exports = function(deployer) {
-    // constructor(address creator, address time, address lands, address quadkey, uint256 landPrice, uint256 upgradableBasePrice, uint64 intervalKind)
-    deployer.deploy(
-        Manager,
-        "0x7D2c112b3DDB209F81f7d294Fe6196552F3c9C35", // creator
-        "0x5B2979aA3C213D5cE0EF041d6b38413f614B7e33", // time
-        "0xDA6e2671BCbFcF8C7F468A3645e96177c7B1514F", // lands
-        "0x643a046337545440F0354caCd3A41d5B2f70003A", // quadkey
-        1, 1, 1
-    );    
+module.exports = deployer => {
+  const creator = "0x743daf3b561f35bfc21b239d336c2d24581a16b4";
+  const time = "0x35ED34260A798fC9d7f0DE48E5510295205ad76A";
+  const lands = "0xC3cB481F400e6de09565c8be3DCABC7189E6a9dF";
+  const quadkey = "0x1152E43E5360DffDB0b509c2239f4198c5A78ADA";
+  const landPrice = 1;
+  const upgradableBasePrice = 1;
+  const intervalKind = 1;
+  
+  deployer.deploy(Manager, creator, time, lands, quadkey, landPrice, upgradableBasePrice, intervalKind);
 }

@@ -11,7 +11,7 @@ import "./libraries/SafeMath.sol";
 
 contract Manager is IManager {
     using SafeMath for uint256;
-    string private _name = "PAIRS";
+    string private _name = "Manager";
 
     struct Reward {
         string landId;
