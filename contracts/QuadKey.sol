@@ -2,14 +2,13 @@
 pragma solidity 0.7.4;
 pragma experimental ABIEncoderV2;
 
-import "./ERC165.sol";
 import "./interfaces/IERC721TokenReceiver.sol";
 import "./interfaces/ILands.sol";
 import "./interfaces/IQuadKey.sol";
 import "./libraries/SafeMath.sol";
 import "./Pausable.sol";
 
-contract QuadKey is ERC165, IQuadKey, Pausable {
+contract QuadKey is IQuadKey, Pausable {
     using SafeMath for uint256;
 
     address internal _creator;
@@ -45,28 +44,6 @@ contract QuadKey is ERC165, IQuadKey, Pausable {
 
         _lands = lands;
         _baseLandId = baseLand;
-        //Add to ERC165 Interface Check
-        _supportedInterfaces[
-            this.balanceOf.selector ^
-            this.isOwnerOf.selector ^
-            this.ownerOf.selector ^
-            bytes4(keccak256("safeTransferFrom(address,address,string,string,uint256,bytes)")) ^
-            bytes4(keccak256("safeTransferFrom(address,address,string,string,uint256)")) ^
-            this.transferFrom.selector ^
-            this.approve.selector ^
-            this.setApprovalForAll.selector ^
-            this.getApproved.selector ^
-            this.isApprovedForAll.selector ^
-            this.totalSupply.selector ^
-            this.tokenByIndex.selector ^
-            this.tokenOfOwnerByIndex.selector ^
-            this.tokenIndexOfOwnerById.selector ^
-            this.name.selector ^
-            this.symbol.selector ^
-            bytes4(keccak256("issueToken(address,string,uint256)")) ^
-            bytes4(keccak256("issueToken(address,string,string,uint256)")) ^
-            this.getTokensOfOwner.selector
-        ] = true;
     }
 
     function setCreator(address creator) external {

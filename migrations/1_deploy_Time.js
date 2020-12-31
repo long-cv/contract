@@ -6,6 +6,11 @@ module.exports = deployer => {
   const name = "Time";
   const symbol = "TIME";
   const decimals = 18;
-  deployer.deploy(Time, creator, supply, name, symbol, decimals)
-    .then(token => token.addMinter(creator));
+  const ulimitedLockType = "unlimited";
+  const lockTypeInterval = 300
+  deployer.deploy(Time, creator, supply, name, symbol, decimals, ulimitedLockType, lockTypeInterval)
+    .then(async token => {
+      await token.addMinter(creator);
+      await token.addPauser(creator);
+    });
 };

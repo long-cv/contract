@@ -2,13 +2,12 @@
 pragma solidity 0.7.4;
 pragma experimental ABIEncoderV2;
 
-import "./ERC165.sol";
 import "./interfaces/IERC721TokenReceiver.sol";
 import "./interfaces/ILands.sol";
 import "./libraries/SafeMath.sol";
 import "./Pausable.sol";
 
-contract Lands is ERC165, ILands, Pausable {
+contract Lands is ILands, Pausable {
     using SafeMath for uint256;
 
     address internal _creator;
@@ -34,27 +33,6 @@ contract Lands is ERC165, ILands, Pausable {
 
         _name = tokenName;
         _symbol = tokenSymbol;
-
-        //Add to ERC165 Interface Check
-        _supportedInterfaces[
-            this.isOwnerOf.selector ^
-            bytes4(keccak256("safeTransferFrom(address,address,string,string,uint256,bytes)")) ^
-            bytes4(keccak256("safeTransferFrom(address,address,string,string,uint256)")) ^
-            this.transferFrom.selector ^
-            this.setApprovalForAll.selector ^
-            this.isApprovedForAll.selector ^
-            this.totalSupply.selector ^
-            this.tokenByIndex.selector ^
-            this.tokenOfOwnerByIndex.selector ^
-            this.tokenIndexOfOwnerById.selector ^
-            this.name.selector ^
-            this.symbol.selector ^
-            this.createToken.selector ^
-            this.getTokenIDs.selector ^
-            this.upgradeLand.selector ^
-            this.issueToken.selector ^
-            this.getTokensOfOwner.selector
-        ] = true;
 
         for (uint i = 0; i < initIDs.length; i++) {
             _created[initIDs[i]] = true;

@@ -16,3 +16,11 @@ struct Supplies {
     uint256 totalIdSupplies;
     uint256 totalTokenSupples;
 }
+
+struct LockInfo {
+    string userId;
+    string lockType;
+    uint64 timestamp;
+    uint64 milestonePassed;
+    uint256 totalSpent;
+}

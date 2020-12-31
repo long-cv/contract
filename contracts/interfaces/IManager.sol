@@ -32,11 +32,11 @@ interface IManager {
 
     function getLandIntervalList() external view returns(string memory Intervals);
     
-    function getLandList(address owner) external view returns(string memory rewards);
+    function getLandList(address owner) external view returns(string memory list);
 
-    function claimRewardOfLand(address owner, string memory quadkey, string memory landId) external;
+    function claimLandReward(address owner, string memory quadkey, string memory landId) external;
 
-    function claimRewardOfQuadKey(address owner, string memory quadkey) external;
+    function claimQuadkeyReward(address owner, string memory quadkey) external;
 
-    function claimAllRewards(address owner) external;
+    function claimAllReward(address owner) external;
 }
