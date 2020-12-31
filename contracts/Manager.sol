@@ -50,14 +50,14 @@ contract Manager is IManager {
 
     function setCreator(address creator) external {
         require(msg.sender == _creator, "Manager >> setCreator: not creator");
-        require(address(0) == creator, "Manager >> setCreator: creator can not be zero address");
+        require(address(0) != creator, "Manager >> setCreator: creator can not be zero address");
         
         _creator = creator;
     }
 
     function setSupplier(address supplier) public {
         require(msg.sender == _creator, "Manager >> setSupplier: not creator");
-        require(address(0) == supplier, "Manager >> setSupplier: supplier can not be zero address");
+        require(address(0) != supplier, "Manager >> setSupplier: supplier can not be zero address");
 
         _rewardSupplier = supplier;
     }

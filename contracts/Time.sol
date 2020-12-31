@@ -54,7 +54,7 @@ contract Time is ITime, MinterRole, Pausable {
 
     function setCreator(address creator) external {
         require(_msgSender() == _creator, "Time >> setCreator: sender does not have permission");
-        require(address(0) == creator, "Time >> setCreator: creator can not be zero address");
+        require(address(0) != creator, "Time >> setCreator: creator can not be zero address");
 
         _creator = creator;
     }

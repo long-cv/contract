@@ -6,7 +6,7 @@ import "./IERC721.sol";
 import "./IERC721Enumerable.sol";
 import "./IERC721Metadata.sol";
 
-interface IQuadKey is IERC721, IERC721Enumerable, IERC721Metadata {
+interface IQuadkey is IERC721, IERC721Enumerable, IERC721Metadata {
     function issueToken(address to, string memory tokenId, uint256 amount) external;
 
     function issueToken(address to, string memory tokenId, string memory landId, uint256 amount) external;

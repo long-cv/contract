@@ -45,7 +45,7 @@ contract Lands is ILands, Pausable {
 
     function setCreator(address creator) external {
         require(msg.sender == _creator, "Lands >> setCreator: not creator");
-        require(address(0) == creator, "Lands >> setCreator: creator can not be zero address");
+        require(address(0) != creator, "Lands >> setCreator: creator can not be zero address");
         
         _creator = creator;
     }

@@ -4,7 +4,6 @@ pragma solidity ^0.7.4;
 import "./libraries/Roles.sol";
 import "./Context.sol";
 import "./ERC20.sol";
-import "./Pausable.sol";
 
 contract MinterRole is Context {
     using Roles for Roles.Role;
