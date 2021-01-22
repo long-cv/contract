@@ -44,5 +44,9 @@ interface ITime is IERC20 {
 
     function getQuotaAmountLeft(address account) external view returns(bool, uint120, uint120, uint64);
 
+    function transferFromOperator(address recipient, uint256 amount) external returns(bool);
+
     function transferFromSupplier(address recipient, uint256 amount) external returns(bool);
+
+    function transferToSupplier(uint256 amount) external returns(bool);
 }

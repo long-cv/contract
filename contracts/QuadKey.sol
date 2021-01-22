@@ -2,13 +2,12 @@
 pragma solidity 0.7.4;
 pragma experimental ABIEncoderV2;
 
-import "./interfaces/IERC721TokenReceiver.sol";
 import "./interfaces/ILands.sol";
 import "./interfaces/IQuadkey.sol";
 import "./libraries/SafeMath.sol";
 import "./Pausable.sol";
 
-contract ITime is IQuadkey, Pausable {
+contract Quadkey is IQuadkey, Pausable {
     using SafeMath for uint256;
 
     address internal _creator;
@@ -31,12 +30,12 @@ contract ITime is IQuadkey, Pausable {
     mapping(string => bool) internal _created; // token is created
 
     address _lands; // addres of lands
-    string _baseLandId;
+    uint16 _baseLandId;
 
     /// @notice Contract constructor
     /// @param tokenName The name of token
     /// @param tokenSymbol The symbol of token
-    constructor(address creator, string memory tokenName, string memory tokenSymbol, address lands, string memory baseLand) {
+    constructor(address creator, string memory tokenName, string memory tokenSymbol, address lands, uint16 baseLand) {
         _creator = creator;
 
         _name = tokenName;
@@ -53,20 +52,10 @@ contract ITime is IQuadkey, Pausable {
         _creator = creator;
     }
 
-    /// @notice Count all NFTs assigned to an owner
-    /// @dev NFTs assigned to the zero address are considered invalid, and this
-    ///  function throws for queries about the zero address.
-    /// @param owner An address for whom to query the balance
-    /// @return The number of NFTs owned by `_owner`, possibly zero
     function balanceOf(address owner) external override view returns (uint256) {
         return _ownerTotalTokenBalance[owner];
     }
 
-    /// @notice check the owner of an NFT
-    /// @dev Throw if tokenId is not valid.
-    /// @param owner address need to check
-    /// @param tokenId The identifier for an NFT
-    /// @return true if is owner, false if not
     function isOwnerOf(address owner, string memory tokenId) public override view returns (bool) {
         require(isValidToken(tokenId), "Quadkey >> isOwnerOf: token is not valid.");
 
@@ -79,54 +68,7 @@ contract ITime is IQuadkey, Pausable {
         return _owners[tokenId];
     }
 
-    /// @notice Transfers number of an NFT from one address to another address
-    /// @dev When transfer is complete, this function
-    ///  checks if `to` is a smart contract (code size > 0). If so, it calls
-    ///  `onERC721Received` on `to` and throws if the return value is not
-    ///  `bytes4(keccak256("onERC721Received(address,address,string,uint256,bytes)"))`.
-    /// @param from The current owner of the NFT
-    /// @param to The new owner
-    /// @param tokenId The NFT to transfer
-    /// @param amount The amount of NFT to transfer
-    /// @param data Additional data with no specified format, sent in call to `to`
-    function safeTransferFrom(address from, address to, string memory tokenId, string memory landId, uint256 amount, bytes memory data) public override whenNotPaused {
-        transferFrom(from, to, tokenId, landId, amount);
-
-        //Get size of "to" address, if 0 it's a wallet
-        uint32 size;
-        assembly {
-            size := extcodesize(to)
-        }
-
-        if (size > 0) {
-            IERC721TokenReceiver receiver = IERC721TokenReceiver(to);
-            require(receiver.onERC721Received(msg.sender, from, tokenId, amount, data) == bytes4(keccak256("onERC721Received(address,address,string,uint256,bytes)")));
-        }
-    }
-
-    /// @notice Transfers a number of an NFT from one address to another address
-    /// @dev This works identically to the other function with an extra data parameter,
-    ///  except this function just sets data to "".
-    /// @param from The current owner of the NFT
-    /// @param to The new owner
-    /// @param tokenId The NFT to transfer
-    /// @param amount The amount of NFT to transfer
-    function safeTransferFrom(address from, address to, string memory tokenId, string memory landId, uint256 amount) public override whenNotPaused {
-        safeTransferFrom(from, to, tokenId, landId, amount, "");
-    }
-
-    /// @notice Transfer a number of an NFT -- THE CALLER IS RESPONSIBLE
-    ///  TO CONFIRM THAT `to` IS CAPABLE OF RECEIVING NFTS OR ELSE
-    ///  THEY MAY BE PERMANENTLY LOST
-    /// @dev Throws unless `msg.sender` is the current owner, an authorized
-    ///  operator, or the approved address for this NFT. Throws if `from` is
-    ///  not the current owner. Throws if `to` is the zero address. Throws if
-    ///  `tokenId` is not a valid NFT. Throws if the NFT balance is less than `amount`
-    /// @param from The current owner of the NFT
-    /// @param to The new owner
-    /// @param tokenId The NFT to transfer
-    /// @param amount The amount of NFT to transfer
-    function transferFrom(address from, address to, string memory tokenId, string memory landId, uint256 amount) public override whenNotPaused {
+    function transferFrom(address from, address to, string memory tokenId, uint16 landId, uint176 amount) public override whenNotPaused {
         require(isOwnerOf(from, tokenId), "Quadkey >> transferFrom: requrest for address not be an owner of token");
         require(msg.sender == _creator || _authorised[_creator][msg.sender], "Quadkey >> transferFrom: sender does not have permission");
         require(from != to, "Quadkey >> transferFrom: source and destination address are same.");
@@ -156,13 +98,6 @@ contract ITime is IQuadkey, Pausable {
         emit Transfer(from, to, tokenId, amount);
     }
 
-    /// @notice Change or reaffirm the approved address for an NFT
-    /// @dev Throws unless `msg.sender` is the current NFT owner, or an authorized
-    ///  operator of the current owner.
-    /// @param owner address of NFT owner
-    /// @param spender address of new NFT controller
-    /// @param tokenId The NFT to approve
-    /// @param amount number of NFT to approve
     function approve(address owner, address spender, string memory tokenId, uint256 amount) public override whenNotPaused {
         require(isOwnerOf(owner, tokenId), "Quadkey >> approve: requrest for address not be an owner of token");
         require(msg.sender == owner || _authorised[owner][msg.sender], "Quadkey >> approve: sender does not have permission");
@@ -172,74 +107,36 @@ contract ITime is IQuadkey, Pausable {
         emit Approval(owner, spender, tokenId, amount);
     }
 
-    /// @notice Enable or disable approval for a third party ("operator") to manage
-    ///  all of `msg.sender`'s assets
-    /// @dev Emits the ApprovalForAll event. The contract MUST allow
-    ///  multiple operators per owner.
-    /// @param operator Address to add to the set of authorized operators
-    /// @param approved True if the operator is approved, false to revoke approval
     function setApprovalForAll(address operator, bool approved) external override whenNotPaused {
         emit ApprovalForAll(msg.sender, operator, approved);
         
         _authorised[msg.sender][operator] = approved;
     }
 
-    /// @notice Get the approved amount of a single NFT
-    /// @dev Throws if `tokenId` is not a valid NFT.
-    /// @param owner address of owner of The NFT
-    /// @param spender address of controler of The NFT
-    /// @param tokenId The NFT id
-    /// @return The approved amount for this NFT
     function getApproved(address owner, address spender, string memory tokenId) external override view returns (uint256) {
         require(isValidToken(tokenId), "Quadkey >> getApproved: token id is invalid");
 
         return _allowances[owner][spender][tokenId];
     }
 
-    /// @notice Query if an address is an authorized operator for another address
-    /// @param owner The address that owns the NFTs
-    /// @param operator The address that acts on behalf of the owner
-    /// @return True if `operator` is an approved operator for `owner`, false otherwise
     function isApprovedForAll(address owner, address operator) external override view returns (bool) {
         return _authorised[owner][operator];
     }
 
-    /// @notice Count NFTs tracked by this contract
-    /// @return A count of valid NFTs tracked by this contract, where each one of
-    ///  them has an assigned and queryable owner not equal to the zero address
     function totalSupply() external override view returns (Supplies memory) {
         return _totalSupply;
     }
 
-    /// @notice Enumerate valid NFTs
-    /// @dev Throws if `index` >= `totalSupply()`.
-    /// @param index A counter less than `totalSupply()`
-    /// @return The token identifier for the `index`th NFT,
-    ///  (sort order not specified)
     function tokenByIndex(uint256 index) external override view returns (string memory) {
         require(index < _tokenIDs.length, "Quadkey >> tokenByIndex: index is invalid");
         return _tokenIDs[index];
     }
 
-    /// @notice Enumerate NFTs assigned to an owner
-    /// @dev Throws if `index` is less than number of tokens owned or if
-    ///  `owner` is the zero address, representing invalid NFTs.
-    /// @param owner An address where we are interested in NFTs owned by them
-    /// @param index A counter less than number of tokens owned
-    /// @return The token identifier for the `index`th NFT assigned to `owner`,
-    ///   (sort order not specified)
     function tokenOfOwnerByIndex(address owner, uint256 index) external override view returns (QuadKeyInfo memory) {
         require(index < _ownerTokens[owner].length, "Quadkey >> tokenOfOwnerByIndex: index is invalid");
         return _ownerTokens[owner][index];
     }
 
-    /// @notice Enumerate NFTs assigned to an owner
-    /// @dev Throws if token id is not valid or if
-    ///  `owner` is the zero address, representing invalid NFTs.
-    /// @param owner An address where we are interested in NFTs owned by them
-    /// @param tokenId id of token
-    /// @return The token identifier for the `index`th NFT assigned to `owner`,
-    ///   (sort order not specified)
     function tokenIndexOfOwnerById(address owner, string memory tokenId) external override view returns (uint256) {
         require(isOwnerOf(owner, tokenId), "Quadkey >> tokenIndexOfOwnerById: requrest for address not be an owner of token");
         require(isValidToken(tokenId), "Quadkey >> tokenIndexOfOwnerById: token id is invalid.");
@@ -256,21 +153,11 @@ contract ITime is IQuadkey, Pausable {
         __symbol = _symbol;
     }
 
-    /// @notice Mints more tokens, can only be called by contract creator and
-    /// all newly minted tokens will belong to creator.
-    /// @dev check if token id is duplicated, or null or burned. Throw if msg.sender is not creator
-    /// @param tokenId array of extra tokens to mint.
-    /// @param amount number of token.
-    function issueToken(address to, string memory tokenId, uint256 amount) public override whenNotPaused {
+    function issueToken(address to, string memory tokenId, uint176 amount) public override whenNotPaused {
         issueToken(to, tokenId, _baseLandId, amount);
     }
 
-    /// @notice Mints more tokens, can only be called by contract creator and
-    /// all newly minted tokens will belong to creator.
-    /// @dev check if token id is duplicated, or null or burned. Throw if msg.sender is not creator
-    /// @param tokenId array of extra tokens to mint.
-    /// @param amount number of token.
-    function issueToken(address to, string memory tokenId, string memory landId, uint256 amount) public override whenNotPaused {
+    function issueToken(address to, string memory tokenId, uint16 landId, uint176 amount) public override whenNotPaused {
         require(msg.sender == _creator || _authorised[_creator][msg.sender], "Quadkey >> issueToken: sender does not have permission.");
         require(address(0) != to, "Quadkey >> issueToken: issue token for zero address");
         require(bytes(tokenId).length > 0, "Quadkey >> issueToken: token id is null");
@@ -302,18 +189,10 @@ contract ITime is IQuadkey, Pausable {
         emit Transfer(msg.sender, to, tokenId, amount);
     }
 
-    /// @notice get list of token ids of an owner
-    /// @dev throw if 'owner' is zero address
-    /// @param owner address of owner
-    /// @return list of token ids of owner
     function getTokensOfOwner(address owner) external override view returns(QuadKeyInfo[] memory) {
         return _ownerTokens[owner];
     }
 
-    /// @notice Checks if a given tokenId is valid
-    /// @dev If adding the ability to burn tokens, this function will need to reflect that.
-    /// @param tokenId The tokenId to check
-    /// @return (bool) True if valid, False if not valid.
     function isValidToken(string memory tokenId) public override view returns (bool) {
         return _created[tokenId];
     }

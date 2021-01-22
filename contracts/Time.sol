@@ -163,10 +163,22 @@ contract Time is ITime {
         return true;
     }
 
-    function transferFromSupplier(address recipient, uint256 amount) public override returns (bool) {
+    function transferFromOperator(address recipient, uint256 amount) public override returns(bool) {
+        require(isOperator(msg.sender), "Time >> transferFromOperator: sender does not have permission");
+
+        _transfer(msg.sender, recipient, amount);
+        return true;
+    }
+
+    function transferFromSupplier(address recipient, uint256 amount) public override returns(bool) {
         require(isOperator(msg.sender), "Time >> transferFromSupplier: sender does not have permission");
 
         _transfer(_supplier, recipient, amount);
+        return true;
+    }
+
+    function transferToSupplier(uint256 amount) public override returns(bool) {
+        _transfer(msg.sender, _supplier, amount);
         return true;
     }
 
