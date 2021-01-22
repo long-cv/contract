@@ -8,35 +8,41 @@ import "../struct/struct.sol";
 interface ITime is IERC20 {
     event ApprovalForAll(address indexed sender, address indexed operator, bool approved);
     
-    event AddLockType(string lockType, uint256 lockAmount);
+    event AddLockType(uint8 lockType, uint120 lockAmount);
 
-    event SetAccountLockType(address indexed account, string userId, string lockType);
+    event UpdateLockType(uint8 lockType, uint120 lockAmount);
 
-    event UpdateAccountLockType(address account, string lockType);
+    event SetAccountLockType(address indexed account, uint8 lockType);
 
-    function mint(address account, uint256 amount) external returns(bool);
+    event UpdateAccountLockType(address account, uint8 lockType);
+
+    event ChangeCreator(address indexed oldCreator, address indexed newCreator);
+
+    event ChangeSupplier(address indexed oldSupplier, address indexed newNewSupplier);
 
     function setApprovalForAll(address operator, bool approved) external;
    
     function isApprovedForAll(address owner, address operator) external view returns(bool);
 
-    function isValidLockType(string memory lockType) external view returns(bool);
+    function isValidLockType(uint8 lockType) external view returns(bool);
 
-    function addLockType(string memory lockType, uint256 lockAmount) external returns(bool);
+    function addLockType(uint8 lockType, uint120 lockAmount) external returns(bool);
 
-    function getLockTypes() external view returns(string[] memory);
+    function updateLockType(uint8 lockType, uint120 lockAmount) external returns(bool);
 
-    function getLockTypeAmount(string memory lockType) external view returns(uint256);
+    function getLockTypes() external view returns(uint8[] memory);
+
+    function getLockTypeAmount(uint8 lockType) external view returns(uint120);
 
     function isLockActivate(address account) external view returns(bool);
 
-    function setAccountLockType(address account, string memory userId, string memory lockType) external returns(bool);
+    function setAccountLockType(address account, uint8 lockType) external returns(bool);
 
-    function updateAccountLockType(address account, string memory lockType) external returns(bool);
-
-    function updateUserIdLockType(address account, string memory userId) external returns(bool);
+    function updateAccountLockType(address account, uint8 lockType) external returns(bool);
 
     function getAccountLockType(address account) external view returns(LockInfo memory);
 
-    function getQuotaAmountLeft(address account) external view returns(bool, uint256, uint64);
+    function getQuotaAmountLeft(address account) external view returns(bool, uint120, uint120, uint64);
+
+    function transferFromSupplier(address recipient, uint256 amount) external returns(bool);
 }
