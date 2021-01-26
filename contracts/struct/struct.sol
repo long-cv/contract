@@ -7,9 +7,9 @@ struct LandInfo {
     uint64  timestamp;
 }
 
-struct QuadKeyInfo {
+struct QuadkeyInfo {
     string  id;
-    uint256 balance;
+    uint256 amount;
 }
 
 struct Supplies {

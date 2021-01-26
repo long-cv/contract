@@ -2,9 +2,11 @@ const Manager = artifacts.require("Manager");
 
 module.exports = deployer => {
   const creator = "0x743daf3b561f35bfc21b239d336c2d24581a16b4";
-  const time = "0x35ED34260A798fC9d7f0DE48E5510295205ad76A";
-  const lands = "0xC3cB481F400e6de09565c8be3DCABC7189E6a9dF";
-  const quadkey = "0x1152E43E5360DffDB0b509c2239f4198c5A78ADA";
+
+  const time = "0xE549e4207c4b3afc31eC411420f452Fc15576A81";
+  const lands = "0x2FBf156604D63C6472e5d2132CFC12a0fd7c1783";
+  const quadkey = "0x6884E70cebBbf8bBcAC835076FF41C2ea2736Cd1";
+
   const landPrice = 1;
   const upgradableBasePrice = 1;
   const intervalKind = 1;

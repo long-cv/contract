@@ -191,18 +191,18 @@ contract Manager is IManager {
 
     function getLandList(address owner) external override view returns(string memory list) {
         uint64 blockTimestamp = uint64(block.timestamp % 2**64);
-        QuadKeyInfo[] memory quadkeyList = IQuadkey(_quadkey).getTokensOfOwner(owner);
+        QuadkeyInfo[] memory quadkeyList = IQuadkey(_quadkey).getTokensOfOwner(owner);
         bool first = true;
         list = "";
         for (uint i = 0; i < quadkeyList.length; i++) {
-            if (quadkeyList[i].balance > 0) {
+            if (quadkeyList[i].amount > 0) {
                 if (first) {
-                    list = concatString(quadkeyList[i].id,  ":", uintToString(quadkeyList[i].balance));
+                    list = concatString(quadkeyList[i].id,  ":", uintToString(quadkeyList[i].amount));
                     first = false;
                 }
                 else {
                     list = concatString(list, ";", quadkeyList[i].id);
-                    list = concatString(list, ":", uintToString(quadkeyList[i].balance));
+                    list = concatString(list, ":", uintToString(quadkeyList[i].amount));
                 }
                 uint16[] memory landIDs = ILands(_lands).getTokenIDs();
                 for (uint j = 0; j < landIDs.length; j++) {
@@ -258,9 +258,9 @@ contract Manager is IManager {
     }
 
     function claimAllReward(address owner) public override {
-        QuadKeyInfo[] memory quadkeyList = IQuadkey(_quadkey).getTokensOfOwner(owner);
+        QuadkeyInfo[] memory quadkeyList = IQuadkey(_quadkey).getTokensOfOwner(owner);
         for (uint i = 0; i < quadkeyList.length; i++) {
-            if (quadkeyList[i].balance > 0) {
+            if (quadkeyList[i].amount > 0) {
                 claimQuadkeyReward(owner, quadkeyList[i].id);
             }
         }

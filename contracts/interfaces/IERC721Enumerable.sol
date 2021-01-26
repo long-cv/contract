@@ -12,7 +12,7 @@ interface IERC721Enumerable /* is ERC721 */ {
 
     function tokenByIndex(uint256 index) external view returns (string memory);
 
-    function tokenOfOwnerByIndex(address owner, uint256 index) external view returns (QuadKeyInfo memory);
+    function tokenOfOwnerByIndex(address owner, uint256 index) external view returns (QuadkeyInfo memory);
 
     function tokenIndexOfOwnerById(address owner, string memory tokenId) external view returns (uint256);
 }
