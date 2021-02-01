@@ -7,16 +7,6 @@ struct LandInfo {
     uint64  timestamp;
 }
 
-struct QuadkeyInfo {
-    string  id;
-    uint256 amount;
-}
-
-struct Supplies {
-    uint256 totalIdSupplies;
-    uint256 totalTokenSupples;
-}
-
 struct LockInfo {
     uint8   lockType;
     uint64  timestamp;

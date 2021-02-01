@@ -8,11 +8,11 @@ import '../struct/struct.sol';
 /// @dev See https://eips.ethereum.org/EIPS/eip-721
 ///  Note: the ERC-165 identifier for this interface is 0x780e9d63.
 interface IERC721Enumerable /* is ERC721 */ {
-    function totalSupply() external view returns (Supplies memory);
+    function totalSupply() external view returns (uint256, uint256);
 
     function tokenByIndex(uint256 index) external view returns (string memory);
 
-    function tokenOfOwnerByIndex(address owner, uint256 index) external view returns (QuadkeyInfo memory);
+    function tokenOfOwnerByIndex(address owner, uint256 index) external view returns (string memory);
 
     function tokenIndexOfOwnerById(address owner, string memory tokenId) external view returns (uint256);
 }

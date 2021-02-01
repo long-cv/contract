@@ -26,6 +26,7 @@ contract Manager is IManager {
     bytes4 private constant TIME_TRANSFER_FROM_OPERATOR_SELECTOR = bytes4(keccak256(bytes('transferFromOperator(address,uint256)')));
     bytes4 private constant TIME_TRANSFER_FROM_SUPPLIER_SELECTOR = bytes4(keccak256(bytes('transferFromSupplier(address,uint256)')));
     bytes4 private constant TIME_TRANSFER_TO_SUPPLIER_SELECTOR = bytes4(keccak256(bytes('transferToSupplier(uint256)')));
+
     uint64 _intevalKind;
     
     mapping(address => uint256) _reserve; // reserve allow user buying or upgrading land
@@ -119,8 +120,7 @@ contract Manager is IManager {
         _reserve[msg.sender] = _reserve[msg.sender].sub(price, "Manager >> buyLand: the reserve is not enough");
 
         safeTransferToSupplier(_time, price);
-        IQuadkey(_quadkey).issueToken(msg.sender, quadkey, amount);
-
+       IQuadkey(_quadkey).issueToken(msg.sender, quadkey, amount);
     }
 
     function getUpgradableLandPrice(uint16 fromLandId, uint16 toLandId, uint256 amount) external override view returns(uint256) {
@@ -191,35 +191,34 @@ contract Manager is IManager {
 
     function getLandList(address owner) external override view returns(string memory list) {
         uint64 blockTimestamp = uint64(block.timestamp % 2**64);
-        QuadkeyInfo[] memory quadkeyList = IQuadkey(_quadkey).getTokensOfOwner(owner);
+        string[] memory quadkeyList = IQuadkey(_quadkey).getTokensOfOwner(owner);
         bool first = true;
         list = "";
         for (uint i = 0; i < quadkeyList.length; i++) {
-            if (quadkeyList[i].amount > 0) {
-                if (first) {
-                    list = concatString(quadkeyList[i].id,  ":", uintToString(quadkeyList[i].amount));
-                    first = false;
-                }
-                else {
-                    list = concatString(list, ";", quadkeyList[i].id);
-                    list = concatString(list, ":", uintToString(quadkeyList[i].amount));
-                }
-                uint16[] memory landIDs = ILands(_lands).getTokenIDs();
-                for (uint j = 0; j < landIDs.length; j++) {
-                    if(ILands(_lands).isOwnerOf(owner, quadkeyList[i].id, landIDs[j])) {
-                        uint256 index = ILands(_lands).tokenIndexOfOwnerById(owner, quadkeyList[i].id, landIDs[j]);
-                        LandInfo memory land = ILands(_lands).tokenOfOwnerByIndex(owner, quadkeyList[i].id, index);
-                        (uint256 reward,,uint64 timeLeft) = computeTimeRewards(land, blockTimestamp);
-                        list = concatString(list, ":", uintToString(land.id));
-                        list = concatString(list, ":", uintToString(land.amount));
-                        list = concatString(list, ":", uintToString(reward));
-                        list = concatString(list, ":", uintToString(timeLeft));
-                    } else {
-                        list = concatString(list, ":", uintToString(landIDs[j]));
-                        list = concatString(list, ":", "0");
-                        list = concatString(list, ":", "0");
-                        list = concatString(list, ":", "0");
-                    }
+            uint256 amount = IQuadkey(_quadkey).getTokenAmountOfOwner(owner, quadkeyList[i]);
+            if (first) {
+                list = concatString(quadkeyList[i],  ":", uintToString(amount));
+                first = false;
+            }
+            else {
+                list = concatString(list, ";", quadkeyList[i]);
+                list = concatString(list, ":", uintToString(amount));
+            }
+            uint16[] memory landIDs = ILands(_lands).getTokenIDs();
+            for (uint j = 0; j < landIDs.length; j++) {
+                if(ILands(_lands).isOwnerOf(owner, quadkeyList[i], landIDs[j])) {
+                    uint256 index = ILands(_lands).tokenIndexOfOwnerById(owner, quadkeyList[i], landIDs[j]);
+                    LandInfo memory land = ILands(_lands).tokenOfOwnerByIndex(owner, quadkeyList[i], index);
+                    (uint256 reward,,uint64 timeLeft) = computeTimeRewards(land, blockTimestamp);
+                    list = concatString(list, ":", uintToString(land.id));
+                    list = concatString(list, ":", uintToString(land.amount));
+                    list = concatString(list, ":", uintToString(reward));
+                    list = concatString(list, ":", uintToString(timeLeft));
+                } else {
+                    list = concatString(list, ":", uintToString(landIDs[j]));
+                    list = concatString(list, ":", "0");
+                    list = concatString(list, ":", "0");
+                    list = concatString(list, ":", "0");
                 }
             }
         }
@@ -258,11 +257,9 @@ contract Manager is IManager {
     }
 
     function claimAllReward(address owner) public override {
-        QuadkeyInfo[] memory quadkeyList = IQuadkey(_quadkey).getTokensOfOwner(owner);
+        string[] memory quadkeyList = IQuadkey(_quadkey).getTokensOfOwner(owner);
         for (uint i = 0; i < quadkeyList.length; i++) {
-            if (quadkeyList[i].amount > 0) {
-                claimQuadkeyReward(owner, quadkeyList[i].id);
-            }
+            claimQuadkeyReward(owner, quadkeyList[i]);
         }
     }
 

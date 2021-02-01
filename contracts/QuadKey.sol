@@ -12,29 +12,24 @@ contract Quadkey is IQuadkey, Pausable {
 
     address internal _creator;
     
-    mapping(address => mapping(string => bool)) internal _isOwners;
     mapping(address => mapping(address => mapping(string => uint256))) internal _allowances;
     mapping(address => mapping(address => bool)) internal _authorised;
 
     string private _name;
     string private _symbol;
 
-    mapping(address => QuadkeyInfo[]) internal _ownerTokens; // array of tokenId of a owner
+    mapping(address => string[]) internal _ownerTokens; // array of tokenId of a owner
     mapping(address => mapping(string => uint256)) internal _ownerTokenIndexes; // index of tokenId in array of tokenId of a owner
-    mapping(address => uint256) internal _ownerTotalTokenBalance; // total of all tokens owned
+    mapping(address => mapping(string => uint256)) internal _ownerTokenAmount;
 
     string[] internal _tokenIDs; // array of tokenId
     mapping(string => uint256) internal _tokenIndexes; // index of tokenId in array of tokenId
-    Supplies _totalSupply; // total of all tokens supplied
-    mapping(string => address[]) internal _owners; // list of owner of land
+    uint256 _totalSupply; // total of all tokens supplied
     mapping(string => bool) internal _created; // token is created
 
     address _lands; // addres of lands
     uint16 _baseLandId;
 
-    /// @notice Contract constructor
-    /// @param tokenName The name of token
-    /// @param tokenSymbol The symbol of token
     constructor(address creator, string memory tokenName, string memory tokenSymbol, address lands, uint16 baseLand) {
         _creator = creator;
 
@@ -53,49 +48,54 @@ contract Quadkey is IQuadkey, Pausable {
     }
 
     function balanceOf(address owner) external override view returns (uint256) {
-        return _ownerTotalTokenBalance[owner];
+        string[] memory quadkeys = _ownerTokens[owner];
+        uint256 amount;
+        for (uint i = 0; i < quadkeys.length; i++) {
+            amount += _ownerTokenAmount[owner][quadkeys[i]];
+        }
+
+        return amount;
     }
 
     function isOwnerOf(address owner, string memory tokenId) public override view returns (bool) {
         require(isValidToken(tokenId), "Quadkey >> isOwnerOf: token is not valid.");
 
-        return _isOwners[owner][tokenId];
+        return _ownerTokenAmount[owner][tokenId] > 0;
     }
 
-    function ownerOf(string memory tokenId) external override view returns (address[] memory) {
-        require(isValidToken(tokenId), "Quadkey >> ownerOf: token is not valid.");
-
-        return _owners[tokenId];
-    }
-
-    function transferFrom(address from, address to, string memory tokenId, uint16 landId, uint176 amount) public override whenNotPaused {
+    function transferFrom(address from, address to, string memory tokenId, uint16 landId, uint176 amount) public override whenNotPaused returns(bool) {
         require(isOwnerOf(from, tokenId), "Quadkey >> transferFrom: requrest for address not be an owner of token");
         require(_authorised[_creator][msg.sender] || msg.sender == _creator, "Quadkey >> transferFrom: sender does not have permission");
         require(from != to, "Quadkey >> transferFrom: source and destination address are same.");
         require(address(0) != to, "Quadkey >> transferFrom: transfer to zero address.");
         require(isValidToken(tokenId), "Quadkey >> transferFrom: token id is invalid");
 
-        uint256 index = _ownerTokenIndexes[from][tokenId];
-        _ownerTokens[from][index].amount = _ownerTokens[from][index].amount.sub(amount, "Quadkey >> transferFrom: amount exceeds token balance");
-        _ownerTotalTokenBalance[from] = _ownerTotalTokenBalance[from].sub(amount);
+        _ownerTokenAmount[from][tokenId] = _ownerTokenAmount[from][tokenId].sub(amount, "Quadkey >> transferFrom: amount exceeds token amount");
 
-        _ownerTotalTokenBalance[to] = _ownerTotalTokenBalance[to].add(amount);
-        if (!_isOwners[to][tokenId]) {
-            _isOwners[to][tokenId] = true;
-            _owners[tokenId].push(to);
+        if (_ownerTokenAmount[from][tokenId] == 0) {
+            uint256 index = _ownerTokenIndexes[from][tokenId];
+            uint256 lastIndex = _ownerTokens[from].length - 1;
+            if (index != lastIndex) {
+                string memory lastId = _ownerTokens[from][lastIndex];
+                _ownerTokens[from][index] = lastId;
+                _ownerTokenIndexes[from][lastId] = index;
+            }
+            _ownerTokens[from].pop();
+        }
+
+        if (_ownerTokenAmount[to][tokenId] == 0) {
             _ownerTokenIndexes[to][tokenId] = _ownerTokens[to].length;
-            QuadkeyInfo memory quadkey;
-            quadkey.id = tokenId;
-            quadkey.amount = amount;
-            _ownerTokens[to].push(quadkey);
+            _ownerTokens[to].push(tokenId);
+            _ownerTokenAmount[to][tokenId] = amount;
         } else {
-            index = _ownerTokenIndexes[to][tokenId];
-            _ownerTokens[to][index].amount = _ownerTokens[to][index].amount.add(amount);
+            _ownerTokenAmount[to][tokenId] = _ownerTokenAmount[to][tokenId].add(amount);
         }
 
         ILands(_lands).transferFrom(from, to, tokenId, landId, amount);
 
         emit Transfer(from, to, tokenId, amount);
+
+        return true;
     }
 
     function approve(address owner, address spender, string memory tokenId, uint256 amount) public override whenNotPaused {
@@ -123,8 +123,8 @@ contract Quadkey is IQuadkey, Pausable {
         return _authorised[owner][operator];
     }
 
-    function totalSupply() external override view returns (Supplies memory) {
-        return _totalSupply;
+    function totalSupply() external override view returns (uint256, uint256) {
+        return (_tokenIDs.length, _totalSupply);
     }
 
     function tokenByIndex(uint256 index) external override view returns (string memory) {
@@ -132,7 +132,7 @@ contract Quadkey is IQuadkey, Pausable {
         return _tokenIDs[index];
     }
 
-    function tokenOfOwnerByIndex(address owner, uint256 index) external override view returns (QuadkeyInfo memory) {
+    function tokenOfOwnerByIndex(address owner, uint256 index) external override view returns (string memory) {
         require(index < _ownerTokens[owner].length, "Quadkey >> tokenOfOwnerByIndex: index is invalid");
         return _ownerTokens[owner][index];
     }
@@ -153,11 +153,11 @@ contract Quadkey is IQuadkey, Pausable {
         __symbol = _symbol;
     }
 
-    function issueToken(address to, string memory tokenId, uint176 amount) public override whenNotPaused {
-        issueToken(to, tokenId, _baseLandId, amount);
+    function issueToken(address to, string memory tokenId, uint176 amount) public override whenNotPaused returns(bool) {
+        return issueToken(to, tokenId, _baseLandId, amount);
     }
 
-    function issueToken(address to, string memory tokenId, uint16 landId, uint176 amount) public override whenNotPaused {
+    function issueToken(address to, string memory tokenId, uint16 landId, uint176 amount) public override whenNotPaused returns(bool) {
         require(_authorised[_creator][msg.sender] || msg.sender == _creator, "Quadkey >> issueToken: sender does not have permission.");
         require(address(0) != to, "Quadkey >> issueToken: issue token for zero address");
         require(bytes(tokenId).length > 0, "Quadkey >> issueToken: token id is null");
@@ -166,31 +166,30 @@ contract Quadkey is IQuadkey, Pausable {
             _created[tokenId] = true;
             _tokenIndexes[tokenId] = _tokenIDs.length;
             _tokenIDs.push(tokenId);
-            _totalSupply.totalIdSupplies = _totalSupply.totalIdSupplies.add(1);
         }
-        _totalSupply.totalTokenSupples = _totalSupply.totalTokenSupples.add(amount);
+        _totalSupply = _totalSupply.add(amount);
 
-        _ownerTotalTokenBalance[to] = _ownerTotalTokenBalance[to].add(amount);
-        if (!_isOwners[to][tokenId]) {
-            _isOwners[to][tokenId] = true;
-            _owners[tokenId].push(to);
-            QuadkeyInfo memory token;
-            token.id = tokenId;
-            token.amount = amount;
+        if (_ownerTokenAmount[to][tokenId] == 0) {
             _ownerTokenIndexes[to][tokenId] = _ownerTokens[to].length;
-            _ownerTokens[to].push(token);
+            _ownerTokens[to].push(tokenId);
+            _ownerTokenAmount[to][tokenId] = amount;
         } else {
-            uint256 index = _ownerTokenIndexes[to][tokenId];
-            _ownerTokens[to][index].amount = _ownerTokens[to][index].amount.add(amount);
+            _ownerTokenAmount[to][tokenId] = _ownerTokenAmount[to][tokenId].add(amount);
         }
 
         ILands(_lands).issueToken(to, tokenId, landId, amount);
 
         emit Transfer(msg.sender, to, tokenId, amount);
+
+        return true;
     }
 
-    function getTokensOfOwner(address owner) external override view returns(QuadkeyInfo[] memory) {
+    function getTokensOfOwner(address owner) external override view returns(string[] memory) {
         return _ownerTokens[owner];
+    }
+
+    function getTokenAmountOfOwner(address owner, string memory tokenId) external override view returns(uint256) {
+        return _ownerTokenAmount[owner][tokenId];
     }
 
     function isValidToken(string memory tokenId) public override view returns (bool) {
