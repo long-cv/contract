@@ -134,22 +134,22 @@ contract Time is ITime {
         return true;
     }
 
-    function transferFrom(address sender, address recipient, uint120 amount) public override returns(bool) {
-        require(isLockActivate(sender), "Time >> transferFrom: lock type was not set");
+    function transferFrom(address from, address recipient, uint120 amount) public override returns(bool) {
+        require(isLockActivate(from), "Time >> transferFrom: lock type was not set");
 
-        (bool unlimited, uint120 quotaLeft,, uint64 milestonePassed) = computeQuotaAmountLeft(_accountLockInfo[sender]);
+        (bool unlimited, uint120 quotaLeft,, uint64 milestonePassed) = computeQuotaAmountLeft(_accountLockInfo[from]);
         if (!unlimited) {
             require(quotaLeft >= amount, "Time >> transferFrom: quota left is not enough");
 
-            if (_accountLockInfo[sender].milestonePassed < milestonePassed) {
-                _accountLockInfo[sender].milestonePassed = milestonePassed;
-                _accountLockInfo[sender].totalSpent = amount;
+            if (_accountLockInfo[from].milestonePassed < milestonePassed) {
+                _accountLockInfo[from].milestonePassed = milestonePassed;
+                _accountLockInfo[from].totalSpent = amount;
             } else {
-                _accountLockInfo[sender].totalSpent += amount;
+                _accountLockInfo[from].totalSpent += amount;
             }
         }
-        _transfer(sender, recipient, uint256(amount));
-        _approve(sender, msg.sender, _allowances[sender][msg.sender].sub(amount, "Time >> transferFrom: transfer amount exceeds allowance"));
+        _transfer(from, recipient, uint256(amount));
+        _approve(from, msg.sender, _allowances[from][msg.sender].sub(amount, "Time >> transferFrom: transfer amount exceeds allowance"));
         return true;
     }
 
@@ -177,8 +177,8 @@ contract Time is ITime {
         return true;
     }
 
-    function transferToSupplier(uint256 amount) public override returns(bool) {
-        _transfer(msg.sender, _supplier, amount);
+    function transferToSupplier(address from, uint120 amount) public override returns(bool) {
+        transferFrom(from, _supplier, amount);
         return true;
     }
 
@@ -220,8 +220,13 @@ contract Time is ITime {
         return true;
     }
 
-    function getLockTypes() external override view returns(uint8[] memory) {
-        return _lockTypes;
+    function getLockTypes() external override view returns(uint8[] memory, uint120[] memory) {
+        uint120[] memory lockAmounts = new uint120[](_lockTypes.length);
+        uint8[] memory lockTypes = _lockTypes;
+        for (uint i = 0; i < lockTypes.length; i++) {
+            lockAmounts[i] = getLockTypeAmount(lockTypes[i]);
+        }
+        return (lockTypes, lockAmounts);
     }
 
     function getLockTypeAmount(uint8 lockType) public override view returns(uint120) {

@@ -30,7 +30,7 @@ interface ITime is IERC20 {
 
     function updateLockType(uint8 lockType, uint120 lockAmount) external returns(bool);
 
-    function getLockTypes() external view returns(uint8[] memory);
+    function getLockTypes() external view returns(uint8[] memory, uint120[] memory);
 
     function getLockTypeAmount(uint8 lockType) external view returns(uint120);
 
@@ -48,5 +48,5 @@ interface ITime is IERC20 {
 
     function transferFromSupplier(address recipient, uint256 amount) external returns(bool);
 
-    function transferToSupplier(uint256 amount) external returns(bool);
+    function transferToSupplier(address sender, uint120 amount) external returns(bool);
 }

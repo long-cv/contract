@@ -28,7 +28,7 @@ contract Quadkey is IQuadkey, Pausable {
     mapping(string => bool) internal _created; // token is created
 
     address _lands; // addres of lands
-    uint16 _baseLandId;
+    uint16 _baseLandType;
 
     constructor(address creator, string memory tokenName, string memory tokenSymbol, address lands, uint16 baseLand) {
         _creator = creator;
@@ -37,7 +37,7 @@ contract Quadkey is IQuadkey, Pausable {
         _symbol = tokenSymbol;
 
         _lands = lands;
-        _baseLandId = baseLand;
+        _baseLandType = baseLand;
     }
 
     function setCreator(address creator) external {
@@ -45,6 +45,10 @@ contract Quadkey is IQuadkey, Pausable {
         require(address(0) != creator, "Quadkey >> setCreator: creator can not be zero address");
         
         _creator = creator;
+    }
+
+    function getCreator() external view returns(address) {
+        return _creator;
     }
 
     function balanceOf(address owner) external override view returns (uint256) {
@@ -154,7 +158,7 @@ contract Quadkey is IQuadkey, Pausable {
     }
 
     function issueToken(address to, string memory tokenId, uint176 amount) public override whenNotPaused returns(bool) {
-        return issueToken(to, tokenId, _baseLandId, amount);
+        return issueToken(to, tokenId, _baseLandType, amount);
     }
 
     function issueToken(address to, string memory tokenId, uint16 landId, uint176 amount) public override whenNotPaused returns(bool) {

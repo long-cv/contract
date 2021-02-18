@@ -45,6 +45,10 @@ contract Lands is ILands, Pausable {
         _creator = creator;
     }
 
+    function getCreator() external view returns(address) {
+        return _creator;
+    }
+
     function isOwnerOf(address owner, string memory quadkey, uint16 tokenId) public override view returns (bool) {
         require(isValidToken(tokenId), "Lands >> isOwnerOf: token is not valid.");
 

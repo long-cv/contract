@@ -15,12 +15,6 @@ interface IManager {
 
     function isApprovedForAll(address owner, address operator) external view returns (bool);
 
-    function deposit(uint120 amount) external;
-
-    function withdraw(uint120 amount) external;
-
-    function getReserve(address owner) external view returns(uint256);
-
     function getLandPrice(uint256 amount) external view returns(uint256);
 
     function buyLand(string memory quadkey, uint176 amount) external;

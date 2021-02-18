@@ -12,24 +12,16 @@ contract Manager is IManager {
     using SafeMath for uint256;
     string private _name = "Manager";
 
-    struct Reward {
-        string landId;
-        uint256 reward;
-    }
-
     address _creator;
     address _time;
     address _quadkey;
     address _lands;
     mapping(address => mapping(address => bool)) internal _authorised;
-    bytes4 private constant TIME_TRANSFER_FROM_SELECTOR = bytes4(keccak256(bytes('transferFrom(address,address,uint120)')));
-    bytes4 private constant TIME_TRANSFER_FROM_OPERATOR_SELECTOR = bytes4(keccak256(bytes('transferFromOperator(address,uint256)')));
     bytes4 private constant TIME_TRANSFER_FROM_SUPPLIER_SELECTOR = bytes4(keccak256(bytes('transferFromSupplier(address,uint256)')));
-    bytes4 private constant TIME_TRANSFER_TO_SUPPLIER_SELECTOR = bytes4(keccak256(bytes('transferToSupplier(uint256)')));
+    bytes4 private constant TIME_TRANSFER_TO_SUPPLIER_SELECTOR = bytes4(keccak256(bytes('transferToSupplier(address,uint120)')));
 
     uint64 _intevalKind;
     
-    mapping(address => uint256) _reserve; // reserve allow user buying or upgrading land
     uint256 _landPrice;
     uint256 _upgradableBasePrice;
     uint8 _decimals;
@@ -50,6 +42,10 @@ contract Manager is IManager {
         require(address(0) != creator, "Manager >> setCreator: creator can not be zero address");
         
         _creator = creator;
+    }
+
+    function getCreator() external view returns(address) {
+        return _creator;
     }
 
     function setApprovalForAll(address operator, bool approved) external override {
@@ -94,22 +90,6 @@ contract Manager is IManager {
         return string(s);
     }
 
-    function deposit(uint120 amount) external override {
-        address sender = msg.sender;
-        safeTransferFrom(_time, sender, address(this), amount);
-        _reserve[sender] = _reserve[sender].add(amount);
-    }
-
-    function withdraw(uint120 amount) external override {
-        address sender = msg.sender;
-        _reserve[sender] = _reserve[sender].sub(amount, "Manager >> withdraw: the reserve is not enough");
-        safeTransferFromOperator(_time, sender, amount);
-    }
-
-    function getReserve(address owner) external override view returns(uint256) {
-        return _reserve[owner];
-    }
-
     function getLandPrice(uint256 amount) external override view returns(uint256) {
         return _landPrice.mul(amount);
     }
@@ -117,9 +97,8 @@ contract Manager is IManager {
     function buyLand(string memory quadkey, uint176 amount) external override {
         require(IQuadkey(_quadkey).isOwnerOf(msg.sender, quadkey), "Manager >> buyLand: not owner");
         uint256 price = _landPrice.mul(amount);
-        _reserve[msg.sender] = _reserve[msg.sender].sub(price, "Manager >> buyLand: the reserve is not enough");
 
-        safeTransferToSupplier(_time, price);
+        safeTransferToSupplier(_time, msg.sender, price);
        IQuadkey(_quadkey).issueToken(msg.sender, quadkey, amount);
     }
 
@@ -138,9 +117,8 @@ contract Manager is IManager {
         require(toInterval < fromInterval, "Manager >> upgradeLand: not allow downgrading land");
 
         uint256 price = _upgradableBasePrice.mul(amount).mul(fromInterval / toInterval);
-        _reserve[msg.sender] = _reserve[msg.sender].sub(price, "Manager >> upgradeLand: the reserve is not enough");
 
-        safeTransferToSupplier(_time, price);
+        safeTransferToSupplier(_time, msg.sender, price);
         ILands(_lands).upgradeLand(msg.sender, quadkey, fromLandId, toLandId, amount);
     }
 
@@ -206,7 +184,7 @@ contract Manager is IManager {
             }
             uint16[] memory landIDs = ILands(_lands).getTokenIDs();
             for (uint j = 0; j < landIDs.length; j++) {
-                if(ILands(_lands).isOwnerOf(owner, quadkeyList[i], landIDs[j])) {
+                if (ILands(_lands).isOwnerOf(owner, quadkeyList[i], landIDs[j])) {
                     uint256 index = ILands(_lands).tokenIndexOfOwnerById(owner, quadkeyList[i], landIDs[j]);
                     LandInfo memory land = ILands(_lands).tokenOfOwnerByIndex(owner, quadkeyList[i], index);
                     (uint256 reward,,uint64 timeLeft) = computeTimeRewards(land, blockTimestamp);
@@ -274,23 +252,13 @@ contract Manager is IManager {
         _intevalKind = interval;
     }
 
-    function safeTransferFrom(address token, address from, address to, uint256 amount) private {
-        (bool success, bytes memory data) = token.call(abi.encodeWithSelector(TIME_TRANSFER_FROM_SELECTOR, from, to, amount));
-        require(success && (data.length == 0 || abi.decode(data, (bool))), "Manager >> safeTransferFrom: failed.");
-    }
-
-    function safeTransferFromOperator(address token, address to, uint256 amount) private {
-        (bool success, bytes memory data) = token.call(abi.encodeWithSelector(TIME_TRANSFER_FROM_OPERATOR_SELECTOR, to, amount));
-        require(success && (data.length == 0 || abi.decode(data, (bool))), "Manager >> safeTransferFromOperator: failed.");
-    }
-
     function safeTransferFromSupplier(address token, address to, uint256 amount) private {
         (bool success, bytes memory data) = token.call(abi.encodeWithSelector(TIME_TRANSFER_FROM_SUPPLIER_SELECTOR, to, amount));
         require(success && (data.length == 0 || abi.decode(data, (bool))), "Manager >> safeTransferFromSupplier: failed.");
     }
 
-    function safeTransferToSupplier(address token, uint256 amount) private {
-        (bool success, bytes memory data) = token.call(abi.encodeWithSelector(TIME_TRANSFER_TO_SUPPLIER_SELECTOR, amount));
+    function safeTransferToSupplier(address token, address from, uint256 amount) private {
+        (bool success, bytes memory data) = token.call(abi.encodeWithSelector(TIME_TRANSFER_TO_SUPPLIER_SELECTOR, from, amount));
         require(success && (data.length == 0 || abi.decode(data, (bool))), "Manager >> safeTransferToSupplier: failed.");
     }
 
