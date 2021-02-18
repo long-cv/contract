@@ -2,12 +2,12 @@
 pragma solidity 0.7.4;
 pragma experimental ABIEncoderV2;
 
-import "./interfaces/ILands.sol";
-import "./interfaces/IQuadkey.sol";
+import "./interfaces/ILandType.sol";
+import "./interfaces/ILand.sol";
 import "./libraries/SafeMath.sol";
 import "./Pausable.sol";
 
-contract Quadkey is IQuadkey, Pausable {
+contract Land is ILand, Pausable {
     using SafeMath for uint256;
 
     address internal _creator;
@@ -27,22 +27,22 @@ contract Quadkey is IQuadkey, Pausable {
     uint256 _totalSupply; // total of all tokens supplied
     mapping(string => bool) internal _created; // token is created
 
-    address _lands; // addres of lands
+    address _landType; // addres of land type
     uint16 _baseLandType;
 
-    constructor(address creator, string memory tokenName, string memory tokenSymbol, address lands, uint16 baseLand) {
+    constructor(address creator, string memory tokenName, string memory tokenSymbol, address landType, uint16 baseLand) {
         _creator = creator;
 
         _name = tokenName;
         _symbol = tokenSymbol;
 
-        _lands = lands;
+        _landType = landType;
         _baseLandType = baseLand;
     }
 
     function setCreator(address creator) external {
-        require(msg.sender == _creator, "Quadkey >> setCreator: not creator");
-        require(address(0) != creator, "Quadkey >> setCreator: creator can not be zero address");
+        require(msg.sender == _creator, "Land >> setCreator: not creator");
+        require(address(0) != creator, "Land >> setCreator: creator can not be zero address");
         
         _creator = creator;
     }
@@ -62,19 +62,19 @@ contract Quadkey is IQuadkey, Pausable {
     }
 
     function isOwnerOf(address owner, string memory tokenId) public override view returns (bool) {
-        require(isValidToken(tokenId), "Quadkey >> isOwnerOf: token is not valid.");
+        require(isValidToken(tokenId), "Land >> isOwnerOf: token is not valid.");
 
         return _ownerTokenAmount[owner][tokenId] > 0;
     }
 
     function transferFrom(address from, address to, string memory tokenId, uint16 landId, uint176 amount) public override whenNotPaused returns(bool) {
-        require(isOwnerOf(from, tokenId), "Quadkey >> transferFrom: requrest for address not be an owner of token");
-        require(_authorised[_creator][msg.sender] || msg.sender == _creator, "Quadkey >> transferFrom: sender does not have permission");
-        require(from != to, "Quadkey >> transferFrom: source and destination address are same.");
-        require(address(0) != to, "Quadkey >> transferFrom: transfer to zero address.");
-        require(isValidToken(tokenId), "Quadkey >> transferFrom: token id is invalid");
+        require(isOwnerOf(from, tokenId), "Land >> transferFrom: requrest for address not be an owner of token");
+        require(_authorised[_creator][msg.sender] || msg.sender == _creator, "Land >> transferFrom: sender does not have permission");
+        require(from != to, "Land >> transferFrom: source and destination address are same.");
+        require(address(0) != to, "Land >> transferFrom: transfer to zero address.");
+        require(isValidToken(tokenId), "Land >> transferFrom: token id is invalid");
 
-        _ownerTokenAmount[from][tokenId] = _ownerTokenAmount[from][tokenId].sub(amount, "Quadkey >> transferFrom: amount exceeds token amount");
+        _ownerTokenAmount[from][tokenId] = _ownerTokenAmount[from][tokenId].sub(amount, "Land >> transferFrom: amount exceeds token amount");
 
         if (_ownerTokenAmount[from][tokenId] == 0) {
             uint256 index = _ownerTokenIndexes[from][tokenId];
@@ -95,7 +95,7 @@ contract Quadkey is IQuadkey, Pausable {
             _ownerTokenAmount[to][tokenId] = _ownerTokenAmount[to][tokenId].add(amount);
         }
 
-        ILands(_lands).transferFrom(from, to, tokenId, landId, amount);
+        ILandType(_landType).transferFrom(from, to, tokenId, landId, amount);
 
         emit Transfer(from, to, tokenId, amount);
 
@@ -103,9 +103,9 @@ contract Quadkey is IQuadkey, Pausable {
     }
 
     function approve(address owner, address spender, string memory tokenId, uint256 amount) public override whenNotPaused {
-        require(isOwnerOf(owner, tokenId), "Quadkey >> approve: requrest for address not be an owner of token");
-        require(msg.sender == owner || _authorised[owner][msg.sender], "Quadkey >> approve: sender does not have permission");
-        require(spender != address(0), "Quadkey >> approve to the zero address");
+        require(isOwnerOf(owner, tokenId), "Land >> approve: requrest for address not be an owner of token");
+        require(msg.sender == owner || _authorised[owner][msg.sender], "Land >> approve: sender does not have permission");
+        require(spender != address(0), "Land >> approve to the zero address");
 
         _allowances[owner][spender][tokenId] = amount;
         emit Approval(owner, spender, tokenId, amount);
@@ -118,7 +118,7 @@ contract Quadkey is IQuadkey, Pausable {
     }
 
     function getApproved(address owner, address spender, string memory tokenId) external override view returns (uint256) {
-        require(isValidToken(tokenId), "Quadkey >> getApproved: token id is invalid");
+        require(isValidToken(tokenId), "Land >> getApproved: token id is invalid");
 
         return _allowances[owner][spender][tokenId];
     }
@@ -132,18 +132,18 @@ contract Quadkey is IQuadkey, Pausable {
     }
 
     function tokenByIndex(uint256 index) external override view returns (string memory) {
-        require(index < _tokenIDs.length, "Quadkey >> tokenByIndex: index is invalid");
+        require(index < _tokenIDs.length, "Land >> tokenByIndex: index is invalid");
         return _tokenIDs[index];
     }
 
     function tokenOfOwnerByIndex(address owner, uint256 index) external override view returns (string memory) {
-        require(index < _ownerTokens[owner].length, "Quadkey >> tokenOfOwnerByIndex: index is invalid");
+        require(index < _ownerTokens[owner].length, "Land >> tokenOfOwnerByIndex: index is invalid");
         return _ownerTokens[owner][index];
     }
 
     function tokenIndexOfOwnerById(address owner, string memory tokenId) external override view returns (uint256) {
-        require(isOwnerOf(owner, tokenId), "Quadkey >> tokenIndexOfOwnerById: requrest for address not be an owner of token");
-        require(isValidToken(tokenId), "Quadkey >> tokenIndexOfOwnerById: token id is invalid.");
+        require(isOwnerOf(owner, tokenId), "Land >> tokenIndexOfOwnerById: requrest for address not be an owner of token");
+        require(isValidToken(tokenId), "Land >> tokenIndexOfOwnerById: token id is invalid.");
         return _ownerTokenIndexes[owner][tokenId];
     }
 
@@ -162,9 +162,9 @@ contract Quadkey is IQuadkey, Pausable {
     }
 
     function issueToken(address to, string memory tokenId, uint16 landId, uint176 amount) public override whenNotPaused returns(bool) {
-        require(_authorised[_creator][msg.sender] || msg.sender == _creator, "Quadkey >> issueToken: sender does not have permission.");
-        require(address(0) != to, "Quadkey >> issueToken: issue token for zero address");
-        require(bytes(tokenId).length > 0, "Quadkey >> issueToken: token id is null");
+        require(_authorised[_creator][msg.sender] || msg.sender == _creator, "Land >> issueToken: sender does not have permission.");
+        require(address(0) != to, "Land >> issueToken: issue token for zero address");
+        require(bytes(tokenId).length > 0, "Land >> issueToken: token id is null");
 
         if (!_created[tokenId]) {
             _created[tokenId] = true;
@@ -181,7 +181,7 @@ contract Quadkey is IQuadkey, Pausable {
             _ownerTokenAmount[to][tokenId] = _ownerTokenAmount[to][tokenId].add(amount);
         }
 
-        ILands(_lands).issueToken(to, tokenId, landId, amount);
+        ILandType(_landType).issueToken(to, tokenId, landId, amount);
 
         emit Transfer(msg.sender, to, tokenId, amount);
 

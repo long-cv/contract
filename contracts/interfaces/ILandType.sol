@@ -5,7 +5,7 @@ pragma experimental ABIEncoderV2;
 import "./IERC721Metadata.sol";
 import "../struct/struct.sol";
 
-interface ILands is IERC721Metadata {
+interface ILandType is IERC721Metadata {
     event Transfer(address indexed from, address indexed to, string quadkey, uint16 tokenId, uint256 amount);
 
     event ApprovalForAll(address indexed owner, address indexed operator, bool approved);
