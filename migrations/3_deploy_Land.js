@@ -6,6 +6,7 @@ module.exports = deployer => {
   const symbol = "LAND";
   const landType = "0x2B85abdA7f6DF7D37B47437C375e3320d8A4FB50";
   const baseLandType = 180;
+  
   deployer.deploy(Land, creator, name, symbol, landType, baseLandType)
     .then(land => land.addPauser(creator));
 }
